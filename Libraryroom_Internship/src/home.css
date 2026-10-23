@@ -1,0 +1,379 @@
+/* Reset & base styles */
+* {
+  box-sizing: border-box;
+  font-family: "Poppins", sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: linear-gradient(to right, #ede7f6, #e3f2fd);
+  padding: 40px;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+/* Main card container */
+.card-container {
+  display: flex;
+  max-width: 1200px;
+  margin: auto;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
+  min-height: 300px;
+  background: white;
+}
+
+/* Left panel with background image and overlay */
+.left-panel {
+  position: relative;
+  flex: 1;
+  background: url("https://images.unsplash.com/photo-1519389950473-47ba0277781c")
+    no-repeat center center/cover;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  padding: 2rem;
+  text-align: center;
+  overflow: hidden;
+  border-top-left-radius: 20px;
+  border-bottom-left-radius: 20px;
+}
+
+/* Overlay for darkening background */
+.left-panel .overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.45);
+  z-index: 0;
+  border-top-left-radius: 20px;
+  border-bottom-left-radius: 20px;
+}
+
+/* Content above overlay */
+.left-panel > *:not(.overlay) {
+  position: relative;
+  z-index: 1;
+}
+
+.left-panel h1 {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.3);
+  font-weight: 700;
+}
+
+.left-panel p {
+  font-size: 1.1rem;
+  max-width: 80%;
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+  line-height: 1.5;
+}
+
+/* Right panel form */
+.right-panel {
+  flex: 1;
+  padding: 2rem 3rem; /* a bit more side padding */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-top-right-radius: 20px;
+  border-bottom-right-radius: 20px;
+  background: #fafafa;
+}
+
+.right-panel h2 {
+  font-size: 1.8rem;
+  color: #6a1b9a;
+  margin-bottom: 2.5rem;
+  font-weight: 700;
+}
+
+.form-group {
+  margin-bottom: 1.2rem;
+}
+
+.form-group input[type="text"] {
+  display: block; /* Make sure inputs stack vertically */
+  margin-bottom: 10px; /* Add vertical space between inputs */
+  width: 100%; /* Optional: make inputs full width */
+}
+
+label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: #4a148c;
+  cursor: pointer;
+}
+
+input[type="text"],
+select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  font-size: 1rem;
+  transition: border-color 0.3s ease;
+}
+
+input[type="text"]:focus,
+select:focus {
+  border-color: #7e57c2;
+  outline: none;
+  box-shadow: 0 0 6px #b39ddb;
+}
+
+button {
+  padding: 0.75rem;
+  background-color: #7e57c2;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: background-color 0.3s ease;
+  width: 100%;
+  margin-top: 1rem;
+  box-shadow: 0 3px 8px rgba(126, 87, 194, 0.5);
+}
+
+button:hover {
+  background-color: #5e35b1;
+  box-shadow: 0 5px 12px rgba(94, 53, 177, 0.6);
+}
+
+/* Seat grid layout */
+.seat-boxes {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  margin: 2rem 0 1.5rem;
+  user-select: none;
+}
+
+.seat {
+  height: 40px;
+  border-radius: 8px;
+  background-color: #66bb6a; /* green */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: white;
+  transition: background-color 0.3s ease;
+  cursor: pointer;
+  user-select: none;
+}
+
+.seat.occupied {
+  background-color: #ef5350; /* red */
+  cursor: not-allowed;
+}
+
+.seat.exited {
+  background-color: #66bb6a; /* green */
+}
+
+.add-member {
+  color: #4a148c;
+  text-align: center;
+  margin-top: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: bold;
+  margin-bottom: 8px;
+  user-select: none;
+}
+
+#welcomeMessage {
+  text-align: center;
+  font-weight: 600;
+  color: #000000;
+  margin-top: 1rem;
+  font-size: 1.25rem;
+}
+
+/* Student details table */
+.student-details-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+  font-size: 0.95rem;
+}
+
+.student-details-table th,
+.student-details-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #ddd;
+}
+
+.student-details-table th {
+  background-color: #f2f2f2;
+  text-align: left;
+  font-weight: 600;
+  color: #4a148c;
+}
+
+.student-details-table tr:nth-child(even) {
+  background-color: #fafafa;
+}
+
+/* Status boxes */
+.stats {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.stat-box {
+  flex: 1;
+  background: #ede7f6;
+  padding: 1rem;
+  border-radius: 10px;
+  color: #4a148c;
+  font-weight: bold;
+  text-align: center;
+  font-size: 1rem;
+  box-shadow: 0 2px 6px rgba(126, 87, 194, 0.15);
+}
+
+/* Bottom container */
+.bottom-container {
+  max-width: 1200px;
+  margin: 40px auto 0;
+  background: #fff;
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.bottom-container h3 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #6a1b9a;
+  margin-bottom: 1rem;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  body {
+    padding: 20px 10px;
+  }
+
+  .card-container {
+    flex-direction: column;
+    min-height: auto;
+    max-width: 100%;
+    border-radius: 15px;
+  }
+
+  .left-panel,
+  .right-panel {
+    flex: unset;
+    width: 100%;
+    padding: 1.5rem 1rem;
+  }
+
+  .left-panel {
+    border-radius: 15px 15px 0 0;
+    min-height: 180px;
+  }
+
+  .right-panel {
+    border-radius: 0 0 15px 15px;
+    background: #f9f8fd;
+  }
+
+  .left-panel h1 {
+    font-size: 2rem;
+  }
+
+  .left-panel p {
+    font-size: 1rem;
+    max-width: 100%;
+  }
+
+  .right-panel h2 {
+    font-size: 1.4rem;
+    margin-bottom: 1rem;
+  }
+
+  label,
+  input[type="text"],
+  select,
+  button {
+    font-size: 1rem;
+  }
+
+  button {
+    padding: 0.7rem;
+  }
+
+  .seat-boxes {
+    gap: 8px;
+    margin: 1.5rem 0;
+    overflow-x: auto;
+    grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  }
+
+  .seat {
+    min-width: 40px;
+    height: 40px;
+  }
+
+  .stats {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .stat-box {
+    font-size: 0.9rem;
+    padding: 0.8rem;
+  }
+
+  .bottom-container {
+    padding: 1rem;
+    margin: 20px 10px 0;
+    max-width: 100%;
+  }
+
+  table {
+    font-size: 0.9rem;
+  }
+
+  /* Make table horizontally scrollable */
+  .bottom-container table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .left-panel .overlay {
+    border-radius: 15px 15px 0 0;
+  }
+}
+
+/* Extra small devices */
+@media (max-width: 400px) {
+  .left-panel h1 {
+    font-size: 1.6rem;
+  }
+
+  .right-panel h2 {
+    font-size: 1.2rem;
+  }
+
+  button {
+    font-size: 0.9rem;
+  }
+}

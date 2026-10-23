@@ -1,0 +1,457 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.admin-body {
+  display: flex;
+  height: 100vh; /* full screen height */
+  width: 100vw; /* full screen width */
+  background: #f0f0f5;
+  overflow: auto;
+}
+
+.agreed {
+  background-color: #4caf50 !important;
+  color: white;
+}
+
+.disagreed {
+  background-color: #f44336 !important;
+  color: white;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.user-email {
+  font-size: 0.8rem; /* smaller email text */
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar button,
+.sidebar select {
+  padding: 0.7rem 1.2rem;
+  background: white;
+  color: black;
+  border: none;
+  border-radius: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.sidebar button:hover,
+.sidebar select:hover {
+  background: #ddd;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 2rem;
+}
+
+.admin-form {
+  margin-bottom: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.admin-form input,
+.admin-form select {
+  padding: 0.4rem;
+  font-size: 1rem;
+}
+
+/* Small width buttons in forms */
+.small-btn {
+  font-size: 0.9rem;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  margin-right: 8px;
+  min-width: 20px;
+  background-color: #bdbefc;
+  color: rgb(0, 0, 0);
+  transition: background 0.3s ease;
+}
+
+.small-btn:hover {
+  background-color: #797bfc;
+}
+
+/* Light colored action buttons in table */
+.light-btn {
+  background-color: #ddd;
+  color: #333;
+  border: none;
+  padding: 6px 10px;
+  font-size: 0.9rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  margin-right: 6px;
+}
+
+.light-btn:hover {
+  background-color: #bbb;
+}
+
+/* Specific remove button color red with light styling */
+.remove-btn {
+  color: #a00;
+  background-color: #f8d7da;
+}
+
+.remove-btn:hover {
+  background-color: #f1aeb5;
+}
+
+.admin-table {
+  overflow-x: auto;
+}
+
+.admin-table table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+}
+
+.admin-table th,
+.admin-table td {
+  border: 1px solid #ccc;
+  padding: 0.5rem;
+  text-align: center;
+  background: #fff;
+}
+
+.admin-table th {
+  background: #ede7f6;
+  color: #31327c;
+}
+
+tr:hover {
+  background-color: #fafafa;
+}
+
+@media (max-width: 768px) {
+  .admin-body {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    flex-direction: row;
+    overflow-x: auto;
+    width: 100%;
+    padding: 1rem;
+    gap: 10px;
+    border-radius: 0;
+  }
+
+  .main-content {
+    width: 100%;
+    padding: 1rem;
+  }
+}
+
+.admin-body {
+  display: flex;
+  height: 100vh; /* full screen height */
+  width: 100vw; /* full screen width */
+  background: #f0f0f5;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 260px;
+  background: linear-gradient(145deg, #8486fd, #9697ee);
+  color: white;
+  padding: 2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  box-shadow: 4px 0 15px rgba(0, 0, 0, 0.1);
+}
+
+/* User info (email and icon) */
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 14px;
+  font-weight: 400;
+  margin-bottom: 1rem;
+  color: white;
+}
+
+/* Make the email text smaller */
+.user-email {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Buttons & select with white bg and black text */
+.sidebar-btn {
+  background: white;
+  color: black;
+  border: 1px solid #ccc;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: background 0.3s ease;
+}
+
+.sidebar-btn:hover,
+.sidebar-btn:focus {
+  background: #f0f0f0;
+  outline: none;
+}
+
+/* The <select> gets .sidebar-btn class so it looks like buttons */
+
+/* Remove default arrow style in some browsers (optional) */
+/* You can keep this if you want cleaner select */
+.sidebar-btn::-ms-expand {
+  display: none;
+}
+
+.sidebar-btn {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+/* Keep the arrow visible for usability, so only add if you want */
+
+/* --- Rest of your styles unchanged --- */
+
+.sidebar h2 {
+  font-size: 1.8rem;
+  margin-bottom: 1rem;
+  text-align: center;
+  color: #fff;
+  letter-spacing: 1px;
+}
+
+.notifications {
+  margin-top: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 1rem;
+  border-radius: 10px;
+}
+
+.notifications h4 {
+  margin-bottom: 0.5rem;
+  color: #fff;
+  font-size: 1rem;
+}
+
+.notifications ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.notifications li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 0.9rem;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 2rem;
+}
+
+.admin-controls {
+  background: #ede7f6;
+  padding: 1.5rem;
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  text-align: center;
+}
+
+.admin-controls p {
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
+  color: #252661;
+}
+
+.admin-controls-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 1rem; /* space between Agree & Disagree */
+  margin-top: 1rem;
+}
+
+.admin-controls-buttons button {
+  width: 200px;
+  min-width: 100px;
+}
+
+.admin-controls .agree {
+  background: #512da8;
+  color: white;
+}
+
+.admin-controls .disagree {
+  background: #e53935;
+  color: white;
+}
+
+.admin-controls .agree,
+.admin-controls .disagree {
+  padding: 0.4rem 0.8rem;
+  min-width: 80px;
+  font-size: 0.9rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.admin-actions {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.admin-actions button {
+  padding: 0.7rem 1.2rem;
+  background: #bdbefc;
+  color: rgb(0, 0, 0);
+  border: none;
+  border-radius: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.admin-actions button:hover {
+  background: #b5b6fd;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+}
+
+th,
+td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+th {
+  background: #ede7f6;
+  color: #7f81ff;
+}
+
+tr:hover {
+  background-color: #fafafa;
+}
+
+@media (max-width: 768px) {
+  .admin-body {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    flex-direction: row;
+    overflow-x: auto;
+    width: 100%;
+    padding: 1rem;
+    gap: 10px;
+    border-radius: 0;
+  }
+
+  .main-content {
+    width: 100%;
+    padding: 1rem;
+  }
+
+  .admin-actions {
+    flex-direction: column;
+  }
+}
+
+.admin-panel {
+  padding: 1rem;
+  background: #f0f0f5;
+  min-height: 100vh;
+}
+
+.admin-topbar {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.admin-topbar button,
+.admin-topbar select {
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+}
+
+.admin-form {
+  margin-bottom: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.admin-form input,
+.admin-form select {
+  padding: 0.4rem;
+  font-size: 1rem;
+}
+
+.admin-table {
+  overflow-x: auto;
+}
+
+.admin-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-table th,
+.admin-table td {
+  border: 1px solid #ccc;
+  padding: 0.5rem;
+  text-align: center;
+  background: #fff;
+}
