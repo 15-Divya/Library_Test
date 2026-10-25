@@ -89,7 +89,11 @@ const AdminPanel = () => {
           : [entry.hostId || entry.ID || "Unknown"];
       if (!ids.length) return alert("No valid IDs");
 
-      const now = new Date().toISOString();
+      const submittedTime = entry.bookingStart
+  ? typeof entry.bookingStart.toDate === "function"
+    ? entry.bookingStart.toDate().toISOString()
+    : new Date(entry.bookingStart).toISOString()
+  : new Date().toISOString();
       const batch = ids.map((id, i) => ({
   ID: id,
   Role: i === 0 ? "Host" : `Member ${i}`,
@@ -97,7 +101,7 @@ const AdminPanel = () => {
   PC: entry.pc || "",
   Purpose: entry.purpose || "-",
   Duration: entry.duration || "1 hour",
-  Timestamp: now,
+  Timestamp: submittedTime,
   SourceRequestID: entry.id,
 }));
 
@@ -105,9 +109,9 @@ const AdminPanel = () => {
         for (const rec of batch) await addDoc(collection(db, "approved"), rec);
         await deleteDoc(doc(db, "requests", entry.id));
       } catch (e) {
-        console.error(e);
-        alert("Approval failed");
-      }
+  console.error("Approval failed:", e.code, e.message);
+  alert(`Approval failed: ${e.code} - ${e.message}`);
+}
     } else {
       await deleteDoc(doc(db, "requests", entry.id));
     }

@@ -10,7 +10,7 @@ import {
 } from "firebase/firestore";
 
 const Home = () => {
-  const [room, setRoom] = useState("Discussion Room");
+  const [room, setRoom] = useState("Discussion Room 1");
   const [scannedBy, setScannedBy] = useState("Discussion");
   const [otherPurpose, setOtherPurpose] = useState("");
   const [hostId, setHostId] = useState("");
@@ -20,7 +20,8 @@ const Home = () => {
   const [bookedPCs, setBookedPCs] = useState([]);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [roomAvailability, setRoomAvailability] = useState({
-  "Discussion Room": true,
+  "Discussion Room 1": true,
+  "Discussion Room 2": true,
   "E-Resource": true,
 });
   
@@ -158,7 +159,7 @@ const checkStudentUsedDiscussion = async (studentId) => {
       const data = doc.data();
 
       if (
-        data.room === "Discussion Room" &&
+        ["Discussion Room", "Discussion Room 1", "Discussion Room 2"].includes(data.room) &&
         Array.isArray(data.allIds) &&
         data.bookingStart
       ) {
@@ -181,7 +182,7 @@ const checkStudentUsedDiscussion = async (studentId) => {
       const data = doc.data();
 
       if (
-        data.Room === "Discussion Room" &&
+        ["Discussion Room", "Discussion Room 1", "Discussion Room 2"].includes(data.Room) &&
         data.ID === studentId &&
         data.Timestamp
       ) {
@@ -288,7 +289,8 @@ const checkRoomAvailability = async () => {
   try {
     const now = new Date();
 
-    let discussionCount = 0;
+    let discussionRoom1Count = 0;
+    let discussionRoom2Count = 0;
     let eResourceCount = 0;
 
     // =========================
@@ -317,11 +319,19 @@ const checkRoomAvailability = async () => {
       if (now >= startTime && now < endTime) {
 
         // Discussion Room
-        if (data.room === "Discussion Room") {
-          if (Array.isArray(data.allIds)) {
-            discussionCount += data.allIds.length;
-          }
-        }
+        if (
+  ["Discussion Room", "Discussion Room 1"].includes(data.room) &&
+  Array.isArray(data.allIds)
+) {
+  discussionRoom1Count += data.allIds.length;
+}
+
+if (
+  data.room === "Discussion Room 2" &&
+  Array.isArray(data.allIds)
+) {
+  discussionRoom2Count += data.allIds.length;
+}
 
         // E-Resource
         if (data.room === "E-Resource") {
@@ -372,9 +382,13 @@ const checkRoomAvailability = async () => {
       if (now >= startTime && now < endTime) {
 
         // Discussion Room
-        if (data.Room === "Discussion Room") {
-          discussionCount++;
-        }
+        if (["Discussion Room", "Discussion Room 1"].includes(data.Room)) {
+  discussionRoom1Count++;
+}
+
+if (data.Room === "Discussion Room 2") {
+  discussionRoom2Count++;
+}
 
         // E-Resource
         if (
@@ -391,13 +405,15 @@ const checkRoomAvailability = async () => {
     // CHECK CAPACITY
     // =========================
 
-    setRoomAvailability({
-      "Discussion Room": discussionCount < 12,
-      "E-Resource": eResourceCount < 6,
-    });
+   setRoomAvailability({
+  "Discussion Room 1": discussionRoom1Count < 6,
+  "Discussion Room 2": discussionRoom2Count < 6,
+  "E-Resource": eResourceCount < 6,
+});
 
-    console.log("Discussion Room students:", discussionCount);
-    console.log("E-Resource PCs:", eResourceCount);
+console.log("Discussion Room 1 students:", discussionRoom1Count);
+console.log("Discussion Room 2 students:", discussionRoom2Count);
+console.log("E-Resource PCs:", eResourceCount);
 
   } catch (error) {
     console.log(
@@ -479,13 +495,13 @@ const checkRoomAvailability = async () => {
   // =========================
 
   const trimmedGroup =
-  room === "Discussion Room"
+ ["Discussion Room 1", "Discussion Room 2"].includes(room)
     ? groupMembers.map((id) => id.trim()).filter(Boolean)
     : [];
 
 // GROUP MEMBER VALIDATION
 if (
-  room === "Discussion Room" &&
+  ["Discussion Room 1", "Discussion Room 2"].includes(room) &&
   trimmedGroup.some((id) => !/^\d{7}$/.test(id))
 ) {
   alert("All group member IDs must contain exactly 7 numbers.");
@@ -493,7 +509,7 @@ if (
 }
 
 // HOST AND MEMBER SAME CHECK
-if (room === "Discussion Room") {
+if (["Discussion Room 1", "Discussion Room 2"].includes(room)) {
 
   const sameAsHost = trimmedGroup.some(
     (memberId) => memberId === trimmedHostId
@@ -506,7 +522,7 @@ if (room === "Discussion Room") {
 }
 
 // DUPLICATE MEMBER CHECK
-if (room === "Discussion Room") {
+if (["Discussion Room 1", "Discussion Room 2"].includes(room)) {
 
   const uniqueMembers = new Set(trimmedGroup);
 
@@ -517,7 +533,7 @@ if (room === "Discussion Room") {
 }
 
 // DAILY DISCUSSION ROOM CHECK
-if (room === "Discussion Room") {
+  if (["Discussion Room 1", "Discussion Room 2"].includes(room)) {
 
   const allStudentIds = [
     trimmedHostId,
@@ -584,8 +600,9 @@ await addDoc(collection(db, "requests"), {
       setPc("");
       if (scannedBy === "Others") setOtherPurpose("");
     } catch (error) {
-      alert("Failed to submit. Please try again.");
-    }
+  console.error("Booking submission failed:", error);
+  alert(`Failed to submit: ${error.code || error.message}`);
+}
   };
 
   return (
@@ -601,29 +618,38 @@ await addDoc(collection(db, "requests"), {
 
         {!isSubmitted ? (
           <>
-            <div className="form-group">
-              <label>Room:</label>
-            <select
-  value={room}
-  onChange={(e) => setRoom(e.target.value)}
->
-  <option
-    value="Discussion Room"
-    disabled={!roomAvailability["Discussion Room"]}
-  >
-    Discussion Room
-    {!roomAvailability["Discussion Room"] ? " (Full)" : ""}
-  </option>
+           <div className="form-group">
+  <label>Room:</label>
 
-  <option
-    value="E-Resource"
-    disabled={!roomAvailability["E-Resource"]}
+  <select
+    value={room}
+    onChange={(e) => setRoom(e.target.value)}
   >
-    E-Resource
-    {!roomAvailability["E-Resource"] ? " (Full)" : ""}
-  </option>
-</select>
-            </div>
+    <option
+      value="Discussion Room 1"
+      disabled={!roomAvailability["Discussion Room 1"]}
+    >
+      Discussion Room 1
+      {!roomAvailability["Discussion Room 1"] ? " (Full)" : ""}
+    </option>
+
+    <option
+      value="Discussion Room 2"
+      disabled={!roomAvailability["Discussion Room 2"]}
+    >
+      Discussion Room 2
+      {!roomAvailability["Discussion Room 2"] ? " (Full)" : ""}
+    </option>
+
+    <option
+      value="E-Resource"
+      disabled={!roomAvailability["E-Resource"]}
+    >
+      E-Resource
+      {!roomAvailability["E-Resource"] ? " (Full)" : ""}
+    </option>
+  </select>
+</div>
 
            
   {room === "E-Resource" && (
@@ -704,7 +730,7 @@ await addDoc(collection(db, "requests"), {
 />
             </div>
 
-            {room === "Discussion Room" && (
+            {["Discussion Room 1", "Discussion Room 2"].includes(room) && (
               <div className="form-group">
                 <label>Group Member IDs</label>
                 {groupMembers.map((member, index) => (
