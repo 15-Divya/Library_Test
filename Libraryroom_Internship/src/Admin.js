@@ -22,7 +22,9 @@ const AdminPanel = () => {
   const [idInputs, setIdInputs] = useState([""]);
   const [newPurpose, setNewPurpose] = useState("");
   const [newDuration, setNewDuration] = useState("1 hour");
-  const [newRoom, setNewRoom] = useState("Discussion Room");
+  const [newRoom, setNewRoom] = useState("Discussion Room 1");
+const [newBookingDate, setNewBookingDate] = useState("");
+const [newBookingTime, setNewBookingTime] = useState("");
   const [editRowId, setEditRowId] = useState(null);
   const [editData, setEditData] = useState({});
   const [exportType, setExportType] = useState("all");
@@ -124,7 +126,25 @@ const AdminPanel = () => {
       return alert("Enter valid ID(s) and purpose");
     if (invalidIds.length > 0) return alert("Each ID must be exactly 7 digits");
 
-    const now = new Date().toISOString();
+    
+if (!newBookingDate || !newBookingTime) {
+  return alert("Please select a booking date and time.");
+}
+
+const bookingDateTime = new Date(
+  `${newBookingDate}T${newBookingTime}:00`
+);
+
+if (Number.isNaN(bookingDateTime.getTime())) {
+  return alert("Please select a valid date and time.");
+}
+
+if (bookingDateTime < new Date()) {
+  return alert("Please select a future booking date and time.");
+}
+
+const now = bookingDateTime.toISOString();
+
    const batch = ids.map((id, i) => ({
   ID: id,
   Role: i === 0 ? "Manual" : `Member ${i}`,
@@ -140,7 +160,9 @@ const AdminPanel = () => {
       setIdInputs([""]);
       setNewPurpose("");
       setNewDuration("1 hour");
-      setNewRoom("Discussion Room");
+      setNewRoom("Discussion Room 1");
+setNewBookingDate("");
+setNewBookingTime("");
     } catch (e) {
       console.error(e);
       alert("Add failed");
@@ -187,59 +209,187 @@ const AdminPanel = () => {
     }
   };
 
-  const exportToExcel = () => {
-    const now = new Date();
+  
+const exportToExcel = () => {
+  const now = new Date();
+
+  const getBookingDate = (timestamp) => {
+    if (!timestamp) return null;
+
+    const date =
+      typeof timestamp.toDate === "function"
+        ? timestamp.toDate()
+        : new Date(timestamp);
+
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+
+  // Apply the selected room filter first.
+  
+const normalizeRoom = (room) =>
+  (room || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+const isDiscussionRoom = (room) =>
+  ["discussion", "discussionroom", "discussionroom1", "discussionroom2"]
+    .includes(normalizeRoom(room));
+
+const isEResourceRoom = (room) =>
+  ["eresource", "eresourceroom"].includes(normalizeRoom(room));
+
+// Keep all rooms when All Rooms is selected.
+let data =
+  selectedRoom === "All"
+    ? [...approved]
+    : approved.filter((entry) => {
+        const room = normalizeRoom(entry.Room);
+
+        if (normalizeRoom(selectedRoom) === "discussionroom") {
+          return isDiscussionRoom(entry.Room);
+        }
+
+        if (normalizeRoom(selectedRoom) === "eresourceroom") {
+          return isEResourceRoom(entry.Room);
+        }
+
+        return room === normalizeRoom(selectedRoom);
+      });
+
+  // Apply the selected date filter.
+  if (exportType === "day") {
+    data = data.filter((entry) => {
+      const date = getBookingDate(entry.Timestamp);
+      return date && date.toDateString() === now.toDateString();
+    });
+  } else if (exportType === "yesterday") {
     const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
 
-    let data = approved;
-    if (exportType === "day") {
-      data = data.filter(
-        (e) => new Date(e.Timestamp).toDateString() === now.toDateString()
+    data = data.filter((entry) => {
+      const date = getBookingDate(entry.Timestamp);
+      return date && date.toDateString() === yesterday.toDateString();
+    });
+  } else if (exportType === "month") {
+    data = data.filter((entry) => {
+      const date = getBookingDate(entry.Timestamp);
+
+      return (
+        date &&
+        date.getMonth() === now.getMonth() &&
+        date.getFullYear() === now.getFullYear()
       );
-    } else if (exportType === "yesterday") {
-      data = data.filter(
-        (e) => new Date(e.Timestamp).toDateString() === yesterday.toDateString()
-      );
-    } else if (exportType === "month") {
-      data = data.filter((e) => {
-        const d = new Date(e.Timestamp);
-        return (
-          d.getMonth() === now.getMonth() &&
-          d.getFullYear() === now.getFullYear()
-        );
-      });
-    } else if (exportType === "custom") {
-      if (!customStartDate || !customEndDate) {
-        return alert("Please select both start and end dates.");
-      }
-      const start = new Date(customStartDate);
-      const end = new Date(customEndDate);
-      end.setHours(23, 59, 59, 999); // Include entire day
-      data = data.filter((e) => {
-        const t = new Date(e.Timestamp);
-        return t >= start && t <= end;
-      });
+    });
+  } else if (exportType === "custom") {
+    if (!customStartDate || !customEndDate) {
+      return alert("Please select both start and end dates.");
     }
 
-    if (!data.length) return alert("No data to export");
+    const start = new Date(`${customStartDate}T00:00:00`);
+    const end = new Date(`${customEndDate}T23:59:59.999`);
 
-    const clean = data.map(({ id, ...rest }) => ({
+    if (start > end) {
+      return alert("Start date cannot be after end date.");
+    }
+
+    data = data.filter((entry) => {
+      const date = getBookingDate(entry.Timestamp);
+      return date && date >= start && date <= end;
+    });
+  }
+
+  if (!data.length) {
+    return alert(
+      `No bookings found for ${selectedRoom} and the selected date range.`
+    );
+  }
+
+  const clean = data.map(({ id, ...rest }) => {
+    const start = getBookingDate(rest.Timestamp);
+    const end = rest.EndTimestamp
+      ? getBookingDate(rest.EndTimestamp)
+      : calculateEndTime(rest.Timestamp, rest.Duration);
+
+    return {
       ...rest,
-      Date: new Date(rest.Timestamp).toLocaleDateString(),
-      InTime: new Date(rest.Timestamp).toLocaleTimeString(),
-      OutTime: new Date(
-        calculateEndTime(rest.Timestamp, rest.Duration)
-      ).toLocaleTimeString(),
-    }));
+      Date: start ? start.toLocaleDateString("en-IN") : "",
+      InTime: start ? start.toLocaleTimeString("en-IN") : "",
+      OutTime: end ? end.toLocaleTimeString("en-IN") : "",
+    };
+  });
 
-    const ws = XLSX.utils.json_to_sheet(clean);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Approved");
-    XLSX.writeFile(wb, `Approved_Bookings_${exportType}.xlsx`);
-  };
+  const ws = XLSX.utils.json_to_sheet(clean);
+  
+
+const makeSheetData = (records) =>
+  records.map(({ id, ...rest }) => {
+    const start = getBookingDate(rest.Timestamp);
+    const end = rest.EndTimestamp
+      ? getBookingDate(rest.EndTimestamp)
+      : calculateEndTime(rest.Timestamp, rest.Duration);
+
+    return {
+      ...rest,
+      Date: start ? start.toLocaleDateString("en-IN") : "",
+      InTime: start ? start.toLocaleTimeString("en-IN") : "",
+      OutTime: end ? end.toLocaleTimeString("en-IN") : "",
+    };
+  });
+
+  const wb = XLSX.utils.book_new();
+
+if (selectedRoom === "All") {
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet(makeSheetData(data)),
+    "Approved"
+  );
+
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet(
+      makeSheetData(data.filter((entry) => isDiscussionRoom(entry.Room)))
+    ),
+    "Discussion Room"
+  );
+
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet(
+      makeSheetData(data.filter((entry) => isEResourceRoom(entry.Room)))
+    ),
+    "E-Resource"
+  );
+} else {
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet(makeSheetData(data)),
+    selectedRoom === "Discussion Room"
+      ? "Discussion Room"
+      : "E-Resource"
+  );
+}
+
+XLSX.writeFile(
+  wb,
+  `Approved_Bookings_${selectedRoom.replace(/\s+/g, "_")}_${exportType}.xlsx`
+);
+};
+
 
   const now = new Date();
+  console.log("Selected room:", selectedRoom);
+console.log("Selected date filter:", exportType);
+console.log("Current date:", new Date().toString());
+
+console.table(
+  approved.slice(0, 10).map((entry) => ({
+    ID: entry.ID,
+    Room: entry.Room,
+    Timestamp: entry.Timestamp,
+    TimestampType: typeof entry.Timestamp,
+    IsFirestoreTimestamp:
+      typeof entry.Timestamp?.toDate === "function",
+  }))
+);
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
 
@@ -264,10 +414,26 @@ const AdminPanel = () => {
             })()
           : true;
 
-      const matchesRoom = selectedRoom === "All" || entry.Room === selectedRoom;
+     const normalizeRoom = (room) =>
+      (room || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "");
 
-      return matchesDate && matchesRoom;
-    })
+    const selected = normalizeRoom(selectedRoom);
+    const actual = normalizeRoom(entry.Room);
+
+    const matchesRoom =
+      selected === "all" ||
+      selected === "allrooms" ||
+      (selected === "discussionroom"
+        ? ["discussionroom", "discussionroom1", "discussionroom2"].includes(actual)
+        : selected === "eresource" ||
+          selected === "eresourceroom"
+        ? ["eresource", "eresourceroom"].includes(actual)
+        : actual === selected);
+
+    return matchesDate && matchesRoom;
+  })
 
     .sort((a, b) => {
       const aStart = new Date(a.Timestamp);
@@ -308,18 +474,20 @@ const AdminPanel = () => {
     {pending[0].room} requested. Approve?
   </p>
 
-  <p>
-    <strong>Host ID:</strong> {pending[0].hostId}
-  </p>
+ 
+<p>
+  <strong>Host ID:</strong>{" "}
+  {pending[0].hostId || pending[0].ID || pending[0].allIds?.[0] || "N/A"}
+</p>
 
-  {pending[0].room === "Discussion Room" &&
-    Array.isArray(pending[0].allIds) &&
-    pending[0].allIds.length > 1 && (
-      <p>
-        <strong>Member IDs:</strong>{" "}
-        {pending[0].allIds.slice(1).join(", ")}
-      </p>
-    )}
+{Array.isArray(pending[0].allIds) &&
+  pending[0].allIds.length > 1 && (
+    <p>
+      <strong>Member IDs:</strong>{" "}
+      {pending[0].allIds.slice(1).join(", ")}
+    </p>
+  )}
+
 
   <div className="admin-controls-buttons">
     <button
@@ -347,13 +515,14 @@ const AdminPanel = () => {
           <button onClick={() => setShowAddForm(true)}>Add Patron</button>
 
           <select
-            value={selectedRoom}
-            onChange={(e) => setSelectedRoom(e.target.value)}
-          >
-            <option value="All">All Rooms</option>
-            <option value="Discussion Room">Discussion Room</option>
-            <option value="E-Resource">E-Resource Room</option> {/* FIXED */}
-          </select>
+  value={selectedRoom}
+  onChange={(e) => setSelectedRoom(e.target.value)}
+>
+  <option value="All">All Rooms</option>
+  <option value="Discussion Room">Discussion Room</option>
+  <option value="E-Resource Room">E-Resource Room</option>
+  <option value="Periodical Room">Periodical Room</option>
+</select>
 
           <select
             value={exportType}
@@ -417,6 +586,24 @@ const AdminPanel = () => {
               value={newPurpose}
               onChange={(e) => setNewPurpose(e.target.value)}
             />
+
+              <label>Booking Date</label>
+<input
+  type="date"
+  value={newBookingDate}
+  min={new Date().toLocaleDateString("en-CA")}
+  onChange={(e) => setNewBookingDate(e.target.value)}
+  required
+/>
+
+<label>Booking Time</label>
+<input
+  type="time"
+  value={newBookingTime}
+  onChange={(e) => setNewBookingTime(e.target.value)}
+  required
+/>
+
             <select
               value={newDuration}
               onChange={(e) => setNewDuration(e.target.value)}
@@ -425,13 +612,17 @@ const AdminPanel = () => {
               <option>1 hour</option>
               
             </select>
-            <select
-              value={newRoom}
-              onChange={(e) => setNewRoom(e.target.value)}
-            >
-              <option>Discussion</option>
-              <option>E‑Resource</option>
-            </select>
+            <label>Room</label>
+<select
+  value={newRoom}
+  onChange={(e) => setNewRoom(e.target.value)}
+  required
+>
+  <option value="Discussion Room 1">Discussion Room 1</option>
+  <option value="Discussion Room 2">Discussion Room 2</option>
+  <option value="E-Resource">E-Resource</option>
+  <option value="Periodical Room">Periodical Room</option>
+</select>
             <button className="small-btn" onClick={handleAddPatron}>
               Save
             </button>
