@@ -6,7 +6,8 @@ import {
   collection,
   addDoc,
   getDocs,
-  Timestamp
+  Timestamp,
+  onSnapshot
 } from "firebase/firestore";
 
 const Home = () => {
@@ -24,6 +25,40 @@ const Home = () => {
   "Discussion Room 2": true,
   "E-Resource": true,
 });
+
+const calculateEndTime = (timestamp, duration, savedEndTime) => {
+  // Use the Out Time saved by the admin, if available
+  if (savedEndTime) {
+    const endTime =
+      typeof savedEndTime.toDate === "function"
+        ? savedEndTime.toDate()
+        : new Date(savedEndTime);
+
+    if (!Number.isNaN(endTime.getTime())) {
+      return endTime;
+    }
+  }
+
+  // Otherwise, calculate Out Time using the booking duration
+  const startTime =
+    typeof timestamp?.toDate === "function"
+      ? timestamp.toDate()
+      : new Date(timestamp);
+
+  let durationMinutes = 0;
+
+  if (duration === "0.5 hours") {
+    durationMinutes = 30;
+  } else if (duration === "1 hour") {
+    durationMinutes = 60;
+  } else if (duration === "1.5 hours") {
+    durationMinutes = 90;
+  }
+
+  return new Date(
+    startTime.getTime() + durationMinutes * 60 * 1000
+  );
+};
   
 
  const checkBookedPCs = async () => {
@@ -50,12 +85,15 @@ const Home = () => {
         data.bookingStart &&
         data.durationMinutes
       ) {
-        const startTime = data.bookingStart.toDate();
+        
 
-        const endTime = new Date(
-          startTime.getTime() +
-            data.durationMinutes * 60 * 1000
-        );
+const startTime = data.bookingStart.toDate();
+
+const endTime = new Date(
+  startTime.getTime() + data.durationMinutes * 60 * 1000
+);
+
+
 
         if (now >= startTime && now < endTime) {
           currentlyBooked.push(data.pc);
@@ -83,24 +121,16 @@ const Home = () => {
         data.Timestamp &&
         data.Duration
       ) {
-        const startTime = new Date(data.Timestamp);
+        const startTime =
+  typeof data.Timestamp.toDate === "function"
+    ? data.Timestamp.toDate()
+    : new Date(data.Timestamp);
 
-        let durationMinutes = 0;
-
-        if (data.Duration === "0.5 hours") {
-          durationMinutes = 30;
-        } 
-        else if (data.Duration === "1 hour") {
-          durationMinutes = 60;
-        } 
-        else if (data.Duration === "1.5 hours") {
-          durationMinutes = 90;
-        }
-
-        const endTime = new Date(
-          startTime.getTime() +
-            durationMinutes * 60 * 1000
-        );
+const endTime = calculateEndTime(
+  data.Timestamp,
+  data.Duration,
+  data.EndTimestamp
+);
 
         
 
@@ -308,12 +338,12 @@ const checkRoomAvailability = async () => {
         return;
       }
 
-      const startTime = data.bookingStart.toDate();
+     const startTime = data.bookingStart.toDate();
 
-      const endTime = new Date(
-        startTime.getTime() +
-        data.durationMinutes * 60 * 1000
-      );
+const endTime = new Date(
+  startTime.getTime() +
+    data.durationMinutes * 60 * 1000
+);
 
       // Only count currently active bookings
       if (now >= startTime && now < endTime) {
@@ -361,22 +391,16 @@ if (
         return;
       }
 
-      const startTime = new Date(data.Timestamp);
+      const startTime =
+  typeof data.Timestamp?.toDate === "function"
+    ? data.Timestamp.toDate()
+    : new Date(data.Timestamp);
 
-      let durationMinutes = 0;
-
-      if (data.Duration === "0.5 hours") {
-        durationMinutes = 30;
-      } else if (data.Duration === "1 hour") {
-        durationMinutes = 60;
-      } else if (data.Duration === "1.5 hours") {
-        durationMinutes = 90;
-      }
-
-      const endTime = new Date(
-        startTime.getTime() +
-        durationMinutes * 60 * 1000
-      );
+const endTime = calculateEndTime(
+  data.Timestamp,
+  data.Duration,
+  data.EndTimestamp
+);
 
       // Only count currently active bookings
       if (now >= startTime && now < endTime) {
@@ -424,6 +448,97 @@ console.log("E-Resource PCs:", eResourceCount);
 };
 
 
+
+const checkDiscussionRoomCapacity = async (selectedRoom, newMemberCount) => {
+  try {
+    const now = new Date();
+    let bookedMembers = 0;
+
+    // Count members in pending requests
+    const requestSnapshot = await getDocs(
+      collection(db, "requests")
+    );
+
+    requestSnapshot.forEach((doc) => {
+      const data = doc.data();
+
+      const matchesRoom =
+        selectedRoom === "Discussion Room 1"
+          ? ["Discussion Room", "Discussion Room 1"].includes(data.room)
+          : data.room === selectedRoom;
+
+      if (
+        matchesRoom &&
+        data.bookingStart &&
+        data.durationMinutes &&
+        Array.isArray(data.allIds)
+      ) {
+        const startTime = data.bookingStart.toDate();
+        const endTime = new Date(
+          startTime.getTime() + data.durationMinutes * 60 * 1000
+        );
+
+        if (now >= startTime && now < endTime) {
+          bookedMembers += data.allIds.length;
+        }
+      }
+    });
+
+    // Count members in approved bookings
+    const approvedSnapshot = await getDocs(
+      collection(db, "approved")
+    );
+
+    approvedSnapshot.forEach((doc) => {
+      const data = doc.data();
+
+      const matchesRoom =
+        selectedRoom === "Discussion Room 1"
+          ? ["Discussion Room", "Discussion Room 1"].includes(data.Room)
+          : data.Room === selectedRoom;
+
+      if (
+        matchesRoom &&
+        data.Timestamp &&
+        data.Duration
+      ) {
+        const startTime =
+          typeof data.Timestamp.toDate === "function"
+            ? data.Timestamp.toDate()
+            : new Date(data.Timestamp);
+
+        const endTime = calculateEndTime(
+          data.Timestamp,
+          data.Duration,
+          data.EndTimestamp
+        );
+
+        if (now >= startTime && now < endTime) {
+          bookedMembers++;
+        }
+      }
+    });
+
+    const remainingCapacity = Math.max(0, 6 - bookedMembers);
+
+    if (newMemberCount > remainingCapacity) {
+      alert(
+        `Only ${remainingCapacity} more member(s) allowed in ${selectedRoom}. ` +
+        `Available capacity: ${remainingCapacity}.`
+      );
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error checking discussion room capacity:", error);
+    alert("Unable to check room capacity. Please try again.");
+    return false;
+  }
+};
+
+
+
   const handleGroupMemberChange = (index, value) => {
     const updated = [...groupMembers];
     updated[index] = value;
@@ -439,17 +554,34 @@ console.log("E-Resource PCs:", eResourceCount);
   };
 
   useEffect(() => {
-  checkBookedPCs();
-  checkRoomAvailability();
+  const unsubscribeRequests = onSnapshot(
+    collection(db, "requests"),
+    () => {
+      checkBookedPCs();
+      checkRoomAvailability();
+    }
+  );
 
+  const unsubscribeApproved = onSnapshot(
+    collection(db, "approved"),
+    () => {
+      checkBookedPCs();
+      checkRoomAvailability();
+    }
+  );
+
+  // Refresh when time passes, even if Firestore does not change
   const interval = setInterval(() => {
     checkBookedPCs();
     checkRoomAvailability();
   }, 30000);
 
-  return () => clearInterval(interval);
+  return () => {
+    unsubscribeRequests();
+    unsubscribeApproved();
+    clearInterval(interval);
+  };
 }, []);
-
 
   const handleSubmit = async () => {
     if (!roomAvailability[room]) {
@@ -474,6 +606,11 @@ console.log("E-Resource PCs:", eResourceCount);
     if (room === "E-Resource" && !pc) {
     alert("Please select a PC.");
     return;
+    }
+    if (room === "E-Resource" && bookedPCs.includes(pc)) {
+  alert("This PC is already booked. Please select another PC.");
+  return;
+    
 }
 
     if (room === "E-Resource") {
@@ -558,8 +695,25 @@ if (["Discussion Room 1", "Discussion Room 2"].includes(room)) {
 
     
 
-    const allIds = [trimmedHostId, ...trimmedGroup];
-    const now = new Date();
+    
+const allIds = [trimmedHostId, ...trimmedGroup];
+
+// Check that the complete group fits in the room
+if (
+  ["Discussion Room 1", "Discussion Room 2"].includes(room)
+) {
+  const hasCapacity = await checkDiscussionRoomCapacity(
+    room,
+    allIds.length
+  );
+
+  if (!hasCapacity) {
+    return;
+  }
+}
+
+const now = new Date();
+
     const formattedTime = now.toLocaleString("en-IN", {
       hour: "2-digit",
       minute: "2-digit",
