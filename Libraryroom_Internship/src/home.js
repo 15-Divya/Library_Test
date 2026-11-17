@@ -645,6 +645,17 @@ if (
   return;
 }
 
+// MINIMUM 2 STUDENTS REQUIRED FOR DISCUSSION ROOM
+if (
+  ["Discussion Room 1", "Discussion Room 2"].includes(room) &&
+  trimmedGroup.length < 1
+) {
+  alert(
+    "Discussion Room booking requires at least 2 students, including the host."
+  );
+  return;
+}
+
 // HOST AND MEMBER SAME CHECK
 if (["Discussion Room 1", "Discussion Room 2"].includes(room)) {
 

@@ -179,10 +179,12 @@ tr:hover {
 
 .admin-body {
   display: flex;
-  height: 100vh; /* full screen height */
-  width: 100vw; /* full screen width */
+  min-height: 100vh;
+  height: auto;
+  width: 100%;
   background: #f0f0f5;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .sidebar {
@@ -283,6 +285,7 @@ tr:hover {
 
 .main-content {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   padding: 2rem;
@@ -454,4 +457,194 @@ tr:hover {
   padding: 0.5rem;
   text-align: center;
   background: #fff;
+}
+
+
+/* ==============================
+   LIVE ROOM OCCUPANCY
+================================ */
+
+
+/* ==============================
+   LIVE ROOM OCCUPANCY
+================================ */
+
+.live-occupancy {
+  width: 100%;
+  margin: 8px 0;
+}
+
+.live-occupancy > h2 {
+  color: #31327c;
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.occupancy-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+.occupancy-card {
+  background: #ffffff;
+  border: 1px solid #d9d7f5;
+  border-radius: 9px;
+  padding: 10px 12px;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.occupancy-card h3 {
+  color: #373477;
+  font-size: 14px;
+  margin-bottom: 5px;
+}
+
+.occupancy-card h2 {
+  color: #5146c8;
+  font-size: 22px;
+  font-weight: 700;
+  margin: 4px 0 2px;
+}
+
+.occupancy-card p {
+  color: #666;
+  font-size: 11px;
+  margin: 2px 0;
+}
+
+.occupancy-divider {
+  width: 70%;
+  height: 1px;
+  background: #e5e3f5;
+  margin: 6px auto;
+}
+
+.occupancy-card .group-count {
+  color: #5146c8;
+  font-size: 18px;
+  font-weight: 700;
+  margin: 3px 0 1px;
+}
+
+@media (max-width: 1000px) {
+  .occupancy-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .occupancy-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+.notifications {
+  margin-top: 30px;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  max-height: 65vh;
+  overflow-y: auto;
+}
+
+.notifications h4 {
+  margin-bottom: 12px;
+  color: white;
+}
+
+.notification-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notification-item {
+  background: white;
+  color: #222;
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 4px solid #e5a500;
+  overflow-wrap: anywhere;
+}
+
+.teacher-notification {
+  border-left-color: #15965b;
+}
+
+.notification-item h5 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: #31327c;
+}
+
+.notification-item p {
+  font-size: 11px;
+  margin: 6px 0;
+  line-height: 1.4;
+}
+
+.no-notifications {
+  color: white;
+  font-size: 12px;
+}
+
+
+/* Special Booking Form */
+.special-booking-form {
+  border: 2px solid #8b83ef;
+  border-radius: 10px;
+  padding: 20px;
+  margin: 20px 0;
+  background: #fff;
+}
+
+.special-booking-form h3 {
+  margin-bottom: 15px;
+  color: #373477;
+}
+
+.special-booking-form label {
+  display: block;
+  margin-top: 12px;
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+
+.special-booking-form input,
+.special-booking-form select {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+.special-booking-form p {
+  margin: 12px 0;
+  font-size: 14px;
+}
+
+.special-booking-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  max-height: none;
+  overflow: visible;
+}
+
+.special-booking-form input,
+.special-booking-form select {
+  width: 100%;
+}
+
+.special-booking-form button {
+  padding: 10px 18px;
+  margin-top: 10px;
+  cursor: pointer;
 }

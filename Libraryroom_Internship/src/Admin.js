@@ -6,6 +6,7 @@ import {
   onSnapshot,
   deleteDoc,
   addDoc,
+  getDocs,
 } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
@@ -19,6 +20,14 @@ const AdminPanel = () => {
   const [pending, setPending] = useState([]);
   const [approved, setApproved] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
+  // Special Booking states
+const [showSpecialForm, setShowSpecialForm] = useState(false);
+const [specialStudentId, setSpecialStudentId] = useState("");
+const [specialRoom, setSpecialRoom] = useState("Discussion Room 1");
+const [specialMemberIds, setSpecialMemberIds] = useState([""]);
+const [specialPC, setSpecialPC] = useState("");
+const [specialPurpose, setSpecialPurpose] = useState("");
+const [specialDuration, setSpecialDuration] = useState("1 hour");
   const [idInputs, setIdInputs] = useState([""]);
   const [newPurpose, setNewPurpose] = useState("");
   const [newDuration, setNewDuration] = useState("1 hour");
@@ -32,6 +41,18 @@ const AdminPanel = () => {
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
   const [selectedRoom, setSelectedRoom] = useState("All");
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  const convertToDate = (value) => {
+  if (!value) return null;
+
+  const date =
+    typeof value.toDate === "function"
+      ? value.toDate()
+      : new Date(value);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+};
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
@@ -51,7 +72,12 @@ const AdminPanel = () => {
 
     const unsub2 = onSnapshot(collection(db, "approved"), (snap) => {
       const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      items.sort((a, b) => new Date(a.Timestamp) - new Date(b.Timestamp));
+      items.sort((a, b) => {
+  const dateA = convertToDate(a.Timestamp) || new Date(0);
+  const dateB = convertToDate(b.Timestamp) || new Date(0);
+
+  return dateA - dateB;
+});
       setApproved(items);
     });
 
@@ -62,12 +88,12 @@ const AdminPanel = () => {
   }, []);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setApproved((prev) => [...prev]);
-    }, 30000);
+  const interval = setInterval(() => {
+    setCurrentTime(new Date());
+  }, 30000);
 
-    return () => clearInterval(interval);
-  }, []);
+  return () => clearInterval(interval);
+}, []);
 
   const handleLogout = async () => {
     try {
@@ -121,58 +147,62 @@ const AdminPanel = () => {
       .slice(0, 16);
   };
 
-  const handleAction = async (entry, action) => {
-    if (action === "agree") {
-      const ids =
-        Array.isArray(entry.allIds) && entry.allIds.length
-          ? entry.allIds.filter((id) => id?.trim())
-          : [entry.hostId || entry.ID || "Unknown"];
+  
 
-      if (!ids.length) return alert("No valid IDs");
+const handleAction = async (entry, action) => {
+  if (action === "agree") {
+    const ids =
+      Array.isArray(entry.allIds) && entry.allIds.length
+        ? entry.allIds.filter((id) => id?.trim())
+        : [entry.hostId || entry.ID || "Unknown"];
 
-      const submittedTime = entry.bookingStart
-        ? typeof entry.bookingStart.toDate === "function"
-          ? entry.bookingStart.toDate().toISOString()
-          : new Date(entry.bookingStart).toISOString()
-        : new Date().toISOString();
-
-      const batch = ids.map((id, i) => ({
-        ID: id,
-        Role: i === 0 ? "Host" : `Member ${i}`,
-        Room: entry.room || "Discussion Room",
-        PC: entry.pc || "",
-        Purpose: entry.purpose || "-",
-        Duration: entry.duration || "1 hour",
-        Timestamp: submittedTime,
-        SourceRequestID: entry.id,
-      }));
-
-      try {
-        for (const rec of batch) {
-          await addDoc(collection(db, "approved"), rec);
-        }
-
-        await deleteDoc(doc(db, "requests", entry.id));
-      } catch (e) {
-        console.error("Approval failed:", e.code, e.message);
-        alert(`Approval failed: ${e.code} - ${e.message}`);
-      }
-    } else {
-      await deleteDoc(doc(db, "requests", entry.id));
+    if (!ids.length) {
+      alert("No valid IDs");
+      return;
     }
-  };
+
+    const submittedTime = entry.bookingStart
+      ? typeof entry.bookingStart.toDate === "function"
+        ? entry.bookingStart.toDate().toISOString()
+        : new Date(entry.bookingStart).toISOString()
+      : new Date().toISOString();
+
+    try {
+      for (let i = 0; i < ids.length; i++) {
+        await addDoc(collection(db, "approved"), {
+          ID: ids[i],
+          Role: i === 0 ? "Host" : `Member ${i}`,
+          Room: entry.room,
+          PC: entry.pc || "",
+          Purpose: entry.purpose || "",
+          Duration: entry.duration || "1 hour",
+          Timestamp: submittedTime,
+          SourceRequestID: entry.id,
+        });
+      }
+
+      await deleteDoc(doc(db, "requests", entry.id));
+    } catch (e) {
+      console.error("Approval failed:", e);
+      alert("Approval failed. Please try again.");
+    }
+  } else {
+    await deleteDoc(doc(db, "requests", entry.id));
+  }
+};
+
 
   const handleAddPatron = async () => {
     const ids = idInputs.map((id) => id.trim()).filter(Boolean);
-    const invalidIds = ids.filter((id) => !/^\d{7}$/.test(id));
+    /*const invalidIds = ids.filter((id) => !/^\d{7}$/.test(id));*/
 
     if (!ids.length || !newPurpose.trim()) {
       return alert("Enter valid ID(s) and purpose");
     }
 
-    if (invalidIds.length > 0) {
+   /* if (invalidIds.length > 0) {
       return alert("Each ID must be exactly 7 digits");
-    }
+    }*/
 
     if (!newBookingDate || !newBookingTime) {
       return alert("Please select a booking date and time.");
@@ -191,15 +221,20 @@ const AdminPanel = () => {
     }
 
     const now = bookingDateTime.toISOString();
+    const addedAt = new Date().toISOString();
 
-    const batch = ids.map((id, i) => ({
-      ID: id,
-      Role: i === 0 ? "Manual" : `Member ${i}`,
-      Room: newRoom,
-      Purpose: newPurpose.trim(),
-      Duration: newDuration,
-      Timestamp: now,
-    }));
+    const manualGroupId = `manual-${Date.now()}`;
+
+const batch = ids.map((id, i) => ({
+  ID: id,
+  Role: i === 0 ? "Manual" : `Member ${i}`,
+  Room: newRoom,
+  Purpose: newPurpose.trim(),
+  Duration: newDuration,
+  Timestamp: now,
+  CreatedAt: addedAt,
+  GroupBookingID: manualGroupId,
+}));
 
     try {
       for (const rec of batch) {
@@ -218,6 +253,283 @@ const AdminPanel = () => {
       alert("Add failed");
     }
   };
+
+  const isSpecialPCBooked = (pc) => {
+  const now = new Date();
+
+  // Check pending bookings
+  const pendingBooked = pending.some((data) => {
+    if (data.room !== "E-Resource" || data.pc !== pc) {
+      return false;
+    }
+
+    const startTime = convertToDate(data.bookingStart);
+    if (!startTime || !data.durationMinutes) return false;
+
+    const endTime = new Date(
+      startTime.getTime() + data.durationMinutes * 60000
+    );
+
+    return now >= startTime && now < endTime;
+  });
+
+  // Check approved bookings
+  const approvedBooked = approved.some((data) => {
+    if (data.Room !== "E-Resource" || data.PC !== pc) {
+      return false;
+    }
+
+    const startTime = convertToDate(data.Timestamp);
+    if (!startTime) return false;
+
+    const endTime = data.EndTimestamp
+      ? convertToDate(data.EndTimestamp)
+      : calculateEndTime(data.Timestamp, data.Duration);
+
+    return endTime && now >= startTime && now < endTime;
+  });
+
+  return pendingBooked || approvedBooked;
+};
+
+  const handleSpecialBooking = async () => {
+  try {
+    const studentId = specialStudentId.trim();
+
+    // 1. Validate Student ID
+    if (!/^\d{7}$/.test(studentId)) {
+      alert("Please enter a valid 7-digit Student ID.");
+      return;
+    }
+
+    // Validate Discussion Room member IDs
+const memberIds =
+  specialRoom !== "E-Resource"
+    ? specialMemberIds.map((id) => id.trim()).filter(Boolean)
+    : [];
+
+if (specialRoom !== "E-Resource" && memberIds.length === 0) {
+  alert("Please enter at least one Member Student ID.");
+  return;
+}
+
+if (memberIds.some((id) => !/^\d{7}$/.test(id))) {
+  alert("Every Member Student ID must contain exactly 7 digits.");
+  return;
+}
+
+const allStudentIds = [studentId, ...memberIds];
+
+if (new Set(allStudentIds).size !== allStudentIds.length) {
+  alert("Host and Member Student IDs must be different.");
+  return;
+}
+
+    // 2. Validate Purpose
+    if (!specialPurpose.trim()) {
+      alert("Please enter the booking purpose.");
+      return;
+    }
+
+    // 3. Validate PC for E-Resource
+    if (specialRoom === "E-Resource" && !specialPC) {
+      alert("Please select a PC.");
+      return;
+    }
+
+    if (
+  specialRoom === "E-Resource" &&
+  isSpecialPCBooked(specialPC)
+) {
+  alert("This PC is already occupied. Please select another PC.");
+  setSpecialPC("");
+  return;
+}
+
+    const isDiscussion = [
+      "Discussion Room",
+      "Discussion Room 1",
+      "Discussion Room 2",
+    ].includes(specialRoom);
+
+    const today = new Date();
+    const startOfDay = new Date(today);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(today);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const isToday = (value) => {
+      const date = convertToDate(value);
+      return (
+        date &&
+        date >= startOfDay &&
+        date <= endOfDay
+      );
+    };
+
+    // 4. Get today's pending requests and approved bookings
+    const [requestSnapshot, approvedSnapshot] = await Promise.all([
+      getDocs(collection(db, "requests")),
+      getDocs(collection(db, "approved")),
+    ]);
+
+    const requests = requestSnapshot.docs.map((doc) => doc.data());
+    const bookings = approvedSnapshot.docs.map((doc) => doc.data());
+
+   // 5. Check normal booking eligibility for every student
+for (const id of allStudentIds) {
+  const normalRequestUsed = requests.some((data) => {
+    if (!isToday(data.bookingStart)) return false;
+
+    const startTime = convertToDate(data.bookingStart);
+    if (!startTime) return false;
+
+    const endTime = new Date(
+      startTime.getTime() +
+      (Number(data.durationMinutes) || 0) * 60000
+    );
+
+    // Booking must be completed first
+    if (new Date() < endTime) return false;
+
+    if (isDiscussion) {
+      return (
+        [
+          "Discussion Room",
+          "Discussion Room 1",
+          "Discussion Room 2",
+        ].includes(data.room) &&
+        Array.isArray(data.allIds) &&
+        data.allIds.includes(id)
+      );
+    }
+
+    return data.room === "E-Resource" && data.hostId === id;
+  });
+
+  const normalApprovedUsed = bookings.some((data) => {
+    if (data.SpecialBooking === true) return false;
+    if (!isToday(data.Timestamp)) return false;
+
+    const endTime = calculateEndTime(
+      data.Timestamp,
+      data.Duration,
+      data.EndTimestamp
+    );
+
+    if (!endTime || new Date() < endTime) return false;
+
+    if (isDiscussion) {
+      return (
+        [
+          "Discussion Room",
+          "Discussion Room 1",
+          "Discussion Room 2",
+        ].includes(data.Room) &&
+        String(data.ID) === id
+      );
+    }
+
+    return data.Room === "E-Resource" && String(data.ID) === id;
+  });
+
+  if (!normalRequestUsed && !normalApprovedUsed) {
+    alert(
+      `Student ID ${id} has not completed a normal booking for this room category today.`
+    );
+    return;
+  }
+
+  // 6. Check whether this student already has a Special Booking today
+  const specialAlreadyExists = bookings.some((data) => {
+    if (data.SpecialBooking !== true) return false;
+    if (!isToday(data.Timestamp)) return false;
+    if (String(data.ID) !== id) return false;
+
+    if (isDiscussion) {
+      return [
+        "Discussion Room",
+        "Discussion Room 1",
+        "Discussion Room 2",
+      ].includes(data.Room);
+    }
+
+    return data.Room === "E-Resource";
+  });
+
+  if (specialAlreadyExists) {
+    alert(
+      `Student ID ${id} has already received a Special Booking for this room category today.`
+    );
+    return;
+  }
+}
+
+// 7. Automatically calculate booking time
+const startTime = new Date();
+    const endTime = new Date(startTime);
+
+    const durationMinutes =
+      specialDuration === "0.5 hours" ? 30 : 60;
+
+    endTime.setMinutes(
+      endTime.getMinutes() + durationMinutes
+    );
+
+    // 8. Save Special Booking
+if (isDiscussion) {
+  const specialGroupId = `special-${Date.now()}`;
+
+  for (let i = 0; i < allStudentIds.length; i++) {
+    await addDoc(collection(db, "approved"), {
+      ID: allStudentIds[i],
+      Role: i === 0
+        ? "Special Booking Host"
+        : `Special Booking Member ${i}`,
+      Room: specialRoom,
+      PC: "",
+      Purpose: specialPurpose.trim(),
+      Duration: specialDuration,
+      Timestamp: startTime.toISOString(),
+      EndTimestamp: endTime.toISOString(),
+      SpecialBooking: true,
+      GroupBookingID: specialGroupId,
+      GrantedBy: userEmail,
+    });
+  }
+} else {
+  await addDoc(collection(db, "approved"), {
+    ID: studentId,
+    Role: "Special Booking",
+    Room: specialRoom,
+    PC: specialPC,
+    Purpose: specialPurpose.trim(),
+    Duration: specialDuration,
+    Timestamp: startTime.toISOString(),
+    EndTimestamp: endTime.toISOString(),
+    SpecialBooking: true,
+    GrantedBy: userEmail,
+  });
+}
+
+    alert("Special Booking added successfully!");
+
+    // 9. Reset the form
+    setSpecialStudentId("");
+    setSpecialMemberIds([""]);
+    setSpecialRoom("Discussion Room 1");
+    setSpecialPC("");
+    setSpecialPurpose("");
+    setSpecialDuration("1 hour");
+    setShowSpecialForm(false);
+
+  } catch (error) {
+    console.error("Special Booking Error:", error);
+    alert("Unable to create Special Booking. Please try again.");
+  }
+};
+
 
   const handleEdit = (entry) => {
     const endTime = calculateEndTime(
@@ -438,6 +750,238 @@ const AdminPanel = () => {
     );
   };
 
+  
+const getLiveOccupancy = () => {
+  const rooms = {
+    "Discussion Room 1": {
+      members: 0,
+      groups: new Set(),
+    },
+    "Discussion Room 2": {
+      members: 0,
+      groups: new Set(),
+    },
+    "E-Resource": {
+      members: 0,
+      groups: new Set(),
+    },
+  };
+
+  const activeGroups = new Map();
+
+  // Check pending requests
+  pending.forEach((entry) => {
+    const room =
+      entry.room === "Discussion Room"
+        ? "Discussion Room 1"
+        : entry.room;
+
+    if (!rooms[room]) return;
+
+    if (!entry.bookingStart || !entry.durationMinutes) return;
+
+    const start =
+      typeof entry.bookingStart.toDate === "function"
+        ? entry.bookingStart.toDate()
+        : new Date(entry.bookingStart);
+
+    const end = new Date(
+      start.getTime() + entry.durationMinutes * 60000
+    );
+
+    if (currentTime >= start && currentTime < end) {
+      const groupKey = entry.id;
+
+      activeGroups.set(groupKey, {
+        room,
+        members: room === "E-Resource" ? 1 : (entry.allIds?.length || 1),
+      });
+    }
+  });
+
+  // Check approved bookings
+  const approvedGroups = new Map();
+
+  approved.forEach((entry) => {
+    const room =
+      entry.Room === "Discussion Room"
+        ? "Discussion Room 1"
+        : entry.Room;
+
+    if (!rooms[room]) return;
+    if (!entry.Timestamp || !entry.Duration) return;
+
+    const start =
+      typeof entry.Timestamp.toDate === "function"
+        ? entry.Timestamp.toDate()
+        : new Date(entry.Timestamp);
+
+    const end = calculateEndTime(
+      entry.Timestamp,
+      entry.Duration,
+      entry.EndTimestamp
+    );
+
+    if (currentTime >= start && currentTime < end) {
+      // All approved members from one request share SourceRequestID
+      const groupKey =
+        entry.SourceRequestID ||
+        entry.GroupBookingID ||
+        `${room}-${entry.Timestamp}-${entry.Purpose}-${entry.Duration}`;
+
+      if (!approvedGroups.has(groupKey)) {
+        approvedGroups.set(groupKey, {
+          room,
+          members: 0,
+        });
+      }
+
+      approvedGroups.get(groupKey).members++;
+    }
+  });
+
+  // Approved records replace their matching pending request
+  approvedGroups.forEach((value, key) => {
+    activeGroups.set(key, value);
+  });
+
+  // Calculate active members and groups
+  activeGroups.forEach(({ room, members }, key) => {
+    rooms[room].members += members;
+    rooms[room].groups.add(key);
+  });
+
+  return {
+    discussion1: {
+      members: rooms["Discussion Room 1"].members,
+      groups: rooms["Discussion Room 1"].groups.size,
+    },
+    discussion2: {
+      members: rooms["Discussion Room 2"].members,
+      groups: rooms["Discussion Room 2"].groups.size,
+    },
+    eResource: {
+      members: rooms["E-Resource"].members,
+    },
+  };
+};
+
+const liveOccupancy = getLiveOccupancy();
+
+const getDailyUsage = () => {
+  const today = new Date().toDateString();
+
+  const discussion1Groups = new Set();
+  const discussion2Groups = new Set();
+  const eResourceStudents = new Set();
+
+  // Check today's pending requests
+  pending.forEach((entry) => {
+    const date = convertToDate(entry.bookingStart);
+
+    if (!date || date.toDateString() !== today) return;
+
+    const room =
+      entry.room === "Discussion Room"
+        ? "Discussion Room 1"
+        : entry.room;
+
+    if (room === "Discussion Room 1") {
+      discussion1Groups.add(entry.id);
+    } else if (room === "Discussion Room 2") {
+      discussion2Groups.add(entry.id);
+    } else if (room === "E-Resource") {
+      if (entry.hostId) {
+        eResourceStudents.add(entry.hostId);
+      }
+    }
+  });
+
+  // Check today's approved bookings
+  approved.forEach((entry) => {
+    const date = convertToDate(entry.Timestamp);
+
+    if (!date || date.toDateString() !== today) return;
+
+    const room =
+      entry.Room === "Discussion Room"
+        ? "Discussion Room 1"
+        : entry.Room;
+
+    if (room === "Discussion Room 1") {
+      const groupKey =
+        entry.SourceRequestID ||
+        entry.GroupBookingID ||
+        entry.id;
+
+      discussion1Groups.add(groupKey);
+    } else if (room === "Discussion Room 2") {
+      const groupKey =
+        entry.SourceRequestID ||
+        entry.GroupBookingID ||
+        entry.id;
+
+      discussion2Groups.add(groupKey);
+    } else if (room === "E-Resource") {
+      if (entry.ID) {
+        eResourceStudents.add(entry.ID);
+      }
+    }
+  });
+
+  return {
+    discussion1: discussion1Groups.size,
+    discussion2: discussion2Groups.size,
+    eResource: eResourceStudents.size,
+  };
+};
+
+const dailyUsage = getDailyUsage();
+
+// Get end time of a pending request
+const getPendingEndTime = (entry) => {
+  const start = convertToDate(entry.bookingStart);
+
+  if (!start) return null;
+
+  const end = new Date(start);
+
+  end.setMinutes(
+    end.getMinutes() + (Number(entry.durationMinutes) || 0)
+  );
+
+  return end;
+};
+
+// Notifications for teachers added through Add Patron
+const teacherNotificationGroups = Object.values(
+  approved
+    .filter((entry) =>
+      entry.GroupBookingID?.startsWith("manual-")
+    )
+    .reduce((groups, entry) => {
+      const key = entry.GroupBookingID;
+
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+
+      groups[key].push(entry);
+      return groups;
+    }, {})
+).filter((group) => {
+  const firstEntry = group[0];
+
+  const endTime = calculateEndTime(
+    firstEntry.Timestamp,
+    firstEntry.Duration,
+    firstEntry.EndTimestamp
+  );
+
+  return currentTime < endTime;
+});
+
+
   const now = new Date();
 
   console.log("Selected room:", selectedRoom);
@@ -460,7 +1004,8 @@ const AdminPanel = () => {
 
   const filteredApproved = approved
     .filter((entry) => {
-      const ts = new Date(entry.Timestamp);
+      const ts = convertToDate(entry.Timestamp);
+if (!ts) return false;
 
       const matchesDate =
         exportType === "day"
@@ -505,8 +1050,8 @@ const AdminPanel = () => {
       return matchesDate && matchesRoom;
     })
     .sort((a, b) => {
-      const aStart = new Date(a.Timestamp);
-      const bStart = new Date(b.Timestamp);
+      const aStart = convertToDate(a.Timestamp) || new Date(0);
+const bStart = convertToDate(b.Timestamp) || new Date(0);
 
       const aEnd = calculateEndTime(
         a.Timestamp,
@@ -539,16 +1084,120 @@ const AdminPanel = () => {
           Logout
         </button>
 
-        <div className="notifications">
-          <h4>Notifications</h4>
-          <ul>
-            {pending.map((e, i) => (
-              <li key={i}>
-                🟡 {e.ID || e.hostId} requested — {e.purpose}
-              </li>
-            ))}
-          </ul>
+       <div className="notifications">
+  <h4>Notifications</h4>
+
+  <div className="notification-list">
+
+    {/* PENDING BOOKING REQUESTS */}
+    {pending.map((e) => {
+      const startTime = convertToDate(e.bookingStart);
+      const endTime = getPendingEndTime(e);
+
+      const ids =
+        Array.isArray(e.allIds) && e.allIds.length
+          ? e.allIds.join(", ")
+          : e.hostId || e.ID || "N/A";
+
+      return (
+        <div className="notification-item" key={e.id}>
+          <h5>🟡 New Booking Request</h5>
+
+          <p><strong>Student ID:</strong> {ids}</p>
+          <p><strong>Room:</strong> {e.room || "N/A"}</p>
+          <p><strong>PC:</strong> {e.pc || "-"}</p>
+          <p><strong>Purpose:</strong> {e.purpose || "N/A"}</p>
+          <p>
+            <strong>Date:</strong>{" "}
+            {startTime
+              ? startTime.toLocaleDateString("en-IN")
+              : "N/A"}
+          </p>
+          <p>
+            <strong>In Time:</strong>{" "}
+            {startTime
+              ? startTime.toLocaleTimeString("en-IN")
+              : "N/A"}
+          </p>
+          <p>
+            <strong>Out Time:</strong>{" "}
+            {endTime
+              ? endTime.toLocaleTimeString("en-IN")
+              : "N/A"}
+          </p>
         </div>
+      );
+    })}
+
+    {/* TEACHERS ADDED THROUGH ADD PATRON */}
+    {teacherNotificationGroups.map((group) => {
+      const firstEntry = group[0];
+
+      const startTime = convertToDate(firstEntry.Timestamp);
+      const endTime = calculateEndTime(
+        firstEntry.Timestamp,
+        firstEntry.Duration,
+        firstEntry.EndTimestamp
+      );
+
+      const addedTime = convertToDate(
+        firstEntry.CreatedAt
+      );
+
+      return (
+        <div
+          className="notification-item teacher-notification"
+          key={firstEntry.GroupBookingID}
+        >
+          <h5>🟢 Teacher / Patron Added</h5>
+
+          <p>
+            <strong>Name/ID:</strong>{" "}
+            {group.map((entry) => entry.ID).join(", ")}
+          </p>
+
+          <p><strong>Room:</strong> {firstEntry.Room}</p>
+
+          <p><strong>Purpose:</strong> {firstEntry.Purpose}</p>
+
+          <p>
+            <strong>Date:</strong>{" "}
+            {startTime
+              ? startTime.toLocaleDateString("en-IN")
+              : "N/A"}
+          </p>
+
+          <p>
+            <strong>In Time:</strong>{" "}
+            {startTime
+              ? startTime.toLocaleTimeString("en-IN")
+              : "N/A"}
+          </p>
+
+          <p>
+            <strong>Out Time:</strong>{" "}
+            {endTime.toLocaleTimeString("en-IN")}
+          </p>
+
+          <p>
+            <strong>Added At:</strong>{" "}
+            {addedTime
+              ? addedTime.toLocaleString("en-IN")
+              : "Previously Added"}
+          </p>
+        </div>
+      );
+    })}
+
+    {pending.length === 0 &&
+      teacherNotificationGroups.length === 0 && (
+        <p className="no-notifications">
+          No new notifications.
+        </p>
+      )}
+
+  </div>
+</div>
       </div>
 
       <div className="main-content">
@@ -594,9 +1243,80 @@ const AdminPanel = () => {
           </div>
         )}
 
+         <div className="live-occupancy">
+  <h2>Live Room Occupancy</h2>
+  
+
+  <div className="occupancy-cards">
+
+
+{(selectedRoom === "All" ||
+  selectedRoom === "Discussion Room") && (
+    <div className="occupancy-card">
+      <h3>Discussion Room 1</h3>
+      <h2>{liveOccupancy.discussion1.members} / 6</h2>
+      <p>Active Members</p>
+
+      <div className="occupancy-divider"></div>
+
+      <h3 className="group-count">
+        {liveOccupancy.discussion1.groups}
+      </h3>
+      <p>Active Groups</p>
+      <div className="occupancy-divider"></div>
+
+<h3 className="group-count">
+  {dailyUsage.discussion1}
+</h3>
+<p>Groups Used Today</p>
+    </div>
+  )}
+  {(selectedRoom === "All" ||
+  selectedRoom === "Discussion Room") && (
+    <div className="occupancy-card">
+      <h3>Discussion Room 2</h3>
+      <h2>{liveOccupancy.discussion2.members} / 6</h2>
+      <p>Active Members</p>
+
+      <div className="occupancy-divider"></div>
+
+      <h3 className="group-count">
+        {liveOccupancy.discussion2.groups}
+      </h3>
+      <p>Active Groups</p>
+      <div className="occupancy-divider"></div>
+
+<h3 className="group-count">
+  {dailyUsage.discussion2}
+</h3>
+<p>Groups Used Today</p>
+    </div>
+  )}
+  {(selectedRoom === "All" ||
+  selectedRoom === "E-Resource Room") && (
+    <div className="occupancy-card">
+      <h3>E-Resource</h3>
+      <h2>{liveOccupancy.eResource.members} / 6</h2>
+      <p>Occupied PCs</p>
+      <div className="occupancy-divider"></div>
+
+<h3 className="group-count">
+  {dailyUsage.eResource}
+</h3>
+<p>Students Used Today</p>
+    </div>
+  )}
+  </div>
+ 
+</div>
+
         <div className="admin-actions">
           <button onClick={() => setShowAddForm(true)}>
             Add Patron
+          </button>
+
+          <button onClick={() => setShowSpecialForm(true)}>
+            Special Booking
           </button>
 
           <select
@@ -638,25 +1358,24 @@ const AdminPanel = () => {
 
           <button onClick={exportToExcel}>Export Logs</button>
         </div>
+        
+
+
                 {showAddForm && (
           <div className="admin-form">
             <div className="multi-id-inputs">
               {idInputs.map((id, idx) => (
                 <input
-                  key={idx}
-                  type="text"
-                  placeholder={`ID ${idx + 1}`}
-                  value={id}
-                  onChange={(e) => {
-                    const updated = [...idInputs];
-                    const val = e.target.value;
-
-                    if (/^\d{0,7}$/.test(val)) {
-                      updated[idx] = val;
-                      setIdInputs(updated);
-                    }
-                  }}
-                />
+  key={idx}
+  type="text"
+  placeholder={`Enter Name or ID ${idx + 1}`}
+  value={id}
+  onChange={(e) => {
+    const updated = [...idInputs];
+    updated[idx] = e.target.value;
+    setIdInputs(updated);
+  }}
+/>
               ))}
 
               <button
@@ -725,6 +1444,133 @@ const AdminPanel = () => {
             </button>
           </div>
         )}
+        {showSpecialForm && (
+  <div className="admin-form special-booking-form">
+    <h3>Special Booking</h3>
+
+  <label>
+  {specialRoom === "E-Resource" ? "Student ID" : "Host Student ID"}
+</label>
+    <input
+      type="text"
+      value={specialStudentId}
+      maxLength={7}
+      placeholder="Enter 7-digit Student ID"
+      onChange={(e) =>
+        setSpecialStudentId(e.target.value.replace(/\D/g, ""))
+      }
+    />
+
+    {specialRoom !== "E-Resource" && (
+  <>
+    <label>Member Student ID(s)</label>
+
+    {specialMemberIds.map((memberId, index) => (
+      <div key={index} className="member-id-row">
+        <input
+          type="text"
+          value={memberId}
+          maxLength={7}
+          placeholder={`Enter Member ${index + 1} Student ID`}
+          onChange={(e) => {
+            const updatedIds = [...specialMemberIds];
+            updatedIds[index] = e.target.value.replace(/\D/g, "");
+            setSpecialMemberIds(updatedIds);
+          }}
+        />
+
+        {specialMemberIds.length > 1 && (
+          <button
+            type="button"
+            onClick={() =>
+              setSpecialMemberIds(
+                specialMemberIds.filter((_, i) => i !== index)
+              )
+            }
+          >
+            Remove
+          </button>
+        )}
+      </div>
+    ))}
+
+    <button
+      type="button"
+      onClick={() => setSpecialMemberIds([...specialMemberIds, ""])}
+    >
+      + Add Member
+    </button>
+  </>
+)}
+
+    <label>Room</label>
+    <select
+      value={specialRoom}
+      onChange={(e) => {
+  setSpecialRoom(e.target.value);
+  setSpecialPC("");
+  setSpecialMemberIds([""]);
+      }}
+    >
+      <option value="Discussion Room 1">Discussion Room 1</option>
+      <option value="Discussion Room 2">Discussion Room 2</option>
+      <option value="E-Resource">E-Resource</option>
+    </select>
+
+    {specialRoom === "E-Resource" && (
+  <>
+    <label>Select PC</label>
+
+    <select
+      value={specialPC}
+      onChange={(e) => setSpecialPC(e.target.value)}
+    >
+      <option value="">Select PC</option>
+
+      {["PC1", "PC2", "PC3", "PC4", "PC5", "PC6"].map((pc) => {
+        const booked = isSpecialPCBooked(pc);
+
+        return (
+          <option key={pc} value={pc} disabled={booked}>
+            {pc} {booked ? "(Occupied)" : "(Available)"}
+          </option>
+        );
+      })}
+    </select>
+  </>
+)}
+
+    <label>Purpose</label>
+    <input
+      type="text"
+      value={specialPurpose}
+      placeholder="Enter purpose"
+      onChange={(e) => setSpecialPurpose(e.target.value)}
+    />
+
+    <label>Duration</label>
+    <select
+      value={specialDuration}
+      onChange={(e) => setSpecialDuration(e.target.value)}
+    >
+      <option value="0.5 hours">0.5 hours</option>
+      <option value="1 hour">1 hour</option>
+    </select>
+
+    <p>
+      Date and In Time will be set automatically.
+      Out Time will be calculated from the selected duration.
+    </p>
+
+    <button onClick={handleSpecialBooking}>
+      Add Special Booking
+    </button>
+
+    <button onClick={() => setShowSpecialForm(false)}>
+      Cancel
+    </button>
+  </div>
+)}
 
         <div className="admin-table">
           <table>
@@ -811,8 +1657,10 @@ const AdminPanel = () => {
                     </td>
 
                     <td>
-                      {new Date(e.Timestamp).toLocaleDateString()}
-                    </td>
+  {convertToDate(e.Timestamp)
+    ? convertToDate(e.Timestamp).toLocaleDateString("en-IN")
+    : "-"}
+</td>
 
                     <td>
                       {isEditing ? (
@@ -824,7 +1672,9 @@ const AdminPanel = () => {
                           }
                         />
                       ) : (
-                        new Date(e.Timestamp).toLocaleTimeString()
+                        convertToDate(e.Timestamp)
+  ? convertToDate(e.Timestamp).toLocaleTimeString("en-IN")
+  : "-"
                       )}
                     </td>
 
@@ -838,7 +1688,9 @@ const AdminPanel = () => {
                           }
                         />
                       ) : (
-                        endTime.toLocaleTimeString()
+                        convertToDate(endTime)
+  ? convertToDate(endTime).toLocaleTimeString("en-IN")
+  : "-"
                       )}
                     </td>
 
