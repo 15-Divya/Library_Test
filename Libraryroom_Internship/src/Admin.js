@@ -42,6 +42,7 @@ const [specialDuration, setSpecialDuration] = useState("1 hour");
   const [customEndDate, setCustomEndDate] = useState("");
   const [selectedRoom, setSelectedRoom] = useState("All");
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [newEndTime, setNewEndTime] = useState("");
 
   const convertToDate = (value) => {
   if (!value) return null;
@@ -204,13 +205,21 @@ const handleAction = async (entry, action) => {
       return alert("Each ID must be exactly 7 digits");
     }*/
 
-    if (!newBookingDate || !newBookingTime) {
-      return alert("Please select a booking date and time.");
-    }
+   if (!newBookingDate || !newBookingTime || !newEndTime) {
+  return alert("Please select booking date, In Time and Out Time.");
+}
 
-    const bookingDateTime = new Date(
-      `${newBookingDate}T${newBookingTime}:00`
-    );
+const bookingDateTime = new Date(
+  `${newBookingDate}T${newBookingTime}:00`
+);
+
+const bookingEndDateTime = new Date(
+  `${newBookingDate}T${newEndTime}:00`
+);
+
+if (bookingEndDateTime <= bookingDateTime) {
+  return alert("Out Time must be later than In Time.");
+}
 
     if (Number.isNaN(bookingDateTime.getTime())) {
       return alert("Please select a valid date and time.");
@@ -230,8 +239,9 @@ const batch = ids.map((id, i) => ({
   Role: i === 0 ? "Manual" : `Member ${i}`,
   Room: newRoom,
   Purpose: newPurpose.trim(),
-  Duration: newDuration,
-  Timestamp: now,
+  Duration: "Custom",
+Timestamp: bookingDateTime.toISOString(),
+EndTimestamp: bookingEndDateTime.toISOString(),
   CreatedAt: addedAt,
   GroupBookingID: manualGroupId,
 }));
@@ -248,6 +258,7 @@ const batch = ids.map((id, i) => ({
       setNewRoom("Discussion Room 1");
       setNewBookingDate("");
       setNewBookingTime("");
+      setNewEndTime("");
     } catch (e) {
       console.error(e);
       alert("Add failed");
@@ -691,25 +702,124 @@ if (isDiscussion) {
       );
     }
 
-    const makeSheetData = (records) =>
-      records.map(({ id, ...rest }) => {
-        const start = getBookingDate(rest.Timestamp);
-        const end = rest.EndTimestamp
-          ? getBookingDate(rest.EndTimestamp)
-          : calculateEndTime(
-              rest.Timestamp,
-              rest.Duration,
-              rest.EndTimestamp
-            );
+    
+const makeSheetData = (records) =>
+  records.map(({ id, ...rest }) => {
+    const start = getBookingDate(rest.Timestamp);
 
-        return {
-          ...rest,
-          Date: start ? start.toLocaleDateString("en-IN") : "",
-          InTime: start ? start.toLocaleTimeString("en-IN") : "",
-          OutTime: end ? end.toLocaleTimeString("en-IN") : "",
-        };
-      });
+    const end = rest.EndTimestamp
+      ? getBookingDate(rest.EndTimestamp)
+      : calculateEndTime(
+          rest.Timestamp,
+          rest.Duration,
+          rest.EndTimestamp
+        );
 
+    // Remove unwanted columns
+    const {
+      Timestamp,
+      SourceRequestID,
+      EndTimestamp,
+      CreatedAt,
+      GroupBookingID,
+      SpecialBooking,
+      GrantedBy,
+      ...cleanData
+    } = rest;
+
+    const row = {
+      ...cleanData,
+      Date: start ? start.toLocaleDateString("en-IN") : "",
+      InTime: start ? start.toLocaleTimeString("en-IN") : "",
+      OutTime: end ? end.toLocaleTimeString("en-IN") : "",
+    };
+
+    return row;
+  });
+
+
+
+    // Date-wise Summary
+const dateSummary = {};
+
+data.forEach((entry) => {
+  const bookingDate = getBookingDate(entry.Timestamp);
+  if (!bookingDate) return;
+
+  const date = bookingDate.toLocaleDateString("en-IN");
+
+  if (!dateSummary[date]) {
+    dateSummary[date] = {
+      Date: date,
+      eResourceMembers: 0,
+      discussionGroups: new Set(),
+      discussionMembers: 0,
+      periodicalMembers: 0,
+    };
+  }
+
+  if (isEResourceRoom(entry.Room)) {
+    dateSummary[date].eResourceMembers++;
+  }
+
+  if (isDiscussionRoom(entry.Room)) {
+    dateSummary[date].discussionMembers++;
+
+    const groupId =
+      entry.SourceRequestID ||
+      entry.GroupID ||
+      `${entry.Timestamp}_${entry.Room}_${entry.Purpose}`;
+
+    dateSummary[date].discussionGroups.add(groupId);
+  }
+
+  if (normalizeRoom(entry.Room) === "periodicalroom") {
+    dateSummary[date].periodicalMembers++;
+  }
+});
+
+// Generate summary according to selected room
+const summaryData = Object.values(dateSummary)
+  .map((item) => {
+    if (selectedRoom === "E-Resource Room") {
+      return {
+        Date: item.Date,
+        "E-Resource Members": item.eResourceMembers,
+      };
+    }
+
+    if (selectedRoom === "Discussion Room") {
+      return {
+        Date: item.Date,
+        "Discussion Groups": item.discussionGroups.size,
+        "Discussion Members": item.discussionMembers,
+      };
+    }
+
+    if (selectedRoom === "Periodical Room") {
+      return {
+        Date: item.Date,
+        "Periodical Members": item.periodicalMembers,
+      };
+    }
+
+    // All Rooms - keep existing summary
+    return {
+      Date: item.Date,
+      "E-Resource Members": item.eResourceMembers,
+      "Discussion Groups": item.discussionGroups.size,
+      "Discussion Members": item.discussionMembers,
+    };
+  })
+  .sort((a, b) => {
+    const [ad, am, ay] = a.Date.split("/");
+    const [bd, bm, by] = b.Date.split("/");
+    return new Date(ay, am - 1, ad) - new Date(by, bm - 1, bd);
+  });
+
+
+
+  
     const wb = XLSX.utils.book_new();
 
     if (selectedRoom === "All") {
@@ -743,6 +853,14 @@ if (isDiscussion) {
           : "E-Resource"
       );
     }
+
+
+    // Add Date-wise Summary sheet
+XLSX.utils.book_append_sheet(
+  wb,
+  XLSX.utils.json_to_sheet(summaryData),
+  "Date-wise Summary"
+);
 
     XLSX.writeFile(
       wb,
@@ -1026,6 +1144,8 @@ if (!ts) return false;
               return ts >= start && ts <= end;
             })()
           : true;
+
+          const now = new Date();
 
       const normalizeRoom = (room) =>
         (room || "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -1404,21 +1524,21 @@ const bStart = convertToDate(b.Timestamp) || new Date(0);
               required
             />
 
-            <label>Booking Time</label>
-            <input
-              type="time"
-              value={newBookingTime}
-              onChange={(e) => setNewBookingTime(e.target.value)}
-              required
-            />
+           <label>In Time</label>
+<input
+  type="time"
+  value={newBookingTime}
+  onChange={(e) => setNewBookingTime(e.target.value)}
+  required
+/>
 
-            <select
-              value={newDuration}
-              onChange={(e) => setNewDuration(e.target.value)}
-            >
-              <option>0.5 hours</option>
-              <option>1 hour</option>
-            </select>
+<label>Out Time</label>
+<input
+  type="time"
+  value={newEndTime}
+  onChange={(e) => setNewEndTime(e.target.value)}
+  required
+/>
 
             <label>Room</label>
             <select
@@ -1679,20 +1799,27 @@ const bStart = convertToDate(b.Timestamp) || new Date(0);
                     </td>
 
                     <td>
-                      {isEditing ? (
-                        <input
-                          type="datetime-local"
-                          value={editData.EndTimestamp || ""}
-                          onChange={(ev) =>
-                            handleEditChange("EndTimestamp", ev.target.value)
-                          }
-                        />
-                      ) : (
-                        convertToDate(endTime)
-  ? convertToDate(endTime).toLocaleTimeString("en-IN")
-  : "-"
-                      )}
-                    </td>
+  {isEditing ? (
+    <input
+      type="datetime-local"
+      value={editData.EndTimestamp || ""}
+      onChange={(ev) =>
+        handleEditChange("EndTimestamp", ev.target.value)
+      }
+    />
+  ) : (
+    <span
+      style={{
+        color: isExpired ? "red" : "inherit",
+        fontWeight: isExpired ? "bold" : "normal",
+      }}
+    >
+      {convertToDate(endTime)
+        ? convertToDate(endTime).toLocaleTimeString("en-IN")
+        : "-"}
+    </span>
+  )}
+</td>
 
                     <td>
                       {isEditing ? (
