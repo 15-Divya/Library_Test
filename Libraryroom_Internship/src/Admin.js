@@ -7,6 +7,7 @@ import {
   deleteDoc,
   addDoc,
   getDocs,
+  updateDoc,
 } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
@@ -21,13 +22,13 @@ const AdminPanel = () => {
   const [approved, setApproved] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
   // Special Booking states
-const [showSpecialForm, setShowSpecialForm] = useState(false);
-const [specialStudentId, setSpecialStudentId] = useState("");
-const [specialRoom, setSpecialRoom] = useState("Discussion Room 1");
-const [specialMemberIds, setSpecialMemberIds] = useState([""]);
-const [specialPC, setSpecialPC] = useState("");
-const [specialPurpose, setSpecialPurpose] = useState("");
-const [specialDuration, setSpecialDuration] = useState("1 hour");
+// const [showSpecialForm, setShowSpecialForm] = useState(false);
+// const [specialStudentId, setSpecialStudentId] = useState("");
+// const [specialRoom, setSpecialRoom] = useState("Discussion Room 1");
+// const [specialMemberIds, setSpecialMemberIds] = useState([""]);
+// const [specialPC, setSpecialPC] = useState("");
+// const [specialPurpose, setSpecialPurpose] = useState("");
+// const [specialDuration, setSpecialDuration] = useState("1 hour");
   const [idInputs, setIdInputs] = useState([""]);
   const [newPurpose, setNewPurpose] = useState("");
   const [newDuration, setNewDuration] = useState("1 hour");
@@ -91,7 +92,7 @@ const [specialDuration, setSpecialDuration] = useState("1 hour");
   useEffect(() => {
   const interval = setInterval(() => {
     setCurrentTime(new Date());
-  }, 30000);
+  }, 1000);
 
   return () => clearInterval(interval);
 }, []);
@@ -162,11 +163,13 @@ const handleAction = async (entry, action) => {
       return;
     }
 
-    const submittedTime = entry.bookingStart
+   /*  const submittedTime = entry.bookingStart
       ? typeof entry.bookingStart.toDate === "function"
         ? entry.bookingStart.toDate().toISOString()
         : new Date(entry.bookingStart).toISOString()
-      : new Date().toISOString();
+      : new Date().toISOString(); */
+
+      const submittedTime = new Date().toISOString();
 
     try {
       for (let i = 0; i < ids.length; i++) {
@@ -265,7 +268,7 @@ EndTimestamp: bookingEndDateTime.toISOString(),
     }
   };
 
-  const isSpecialPCBooked = (pc) => {
+  /* const isSpecialPCBooked = (pc) => {
   const now = new Date();
 
   // Check pending bookings
@@ -539,7 +542,7 @@ if (isDiscussion) {
     console.error("Special Booking Error:", error);
     alert("Unable to create Special Booking. Please try again.");
   }
-};
+}; */
 
 
   const handleEdit = (entry) => {
@@ -610,6 +613,53 @@ if (isDiscussion) {
       alert("Remove failed");
     }
   };
+  // Early Logout for E-Resource only
+const handleEarlyLogout = async (entry) => {
+  if (entry.Room !== "E-Resource") return;
+
+  const now = new Date();
+
+  const startTime = convertToDate(entry.Timestamp);
+
+  const endTime = calculateEndTime(
+    entry.Timestamp,
+    entry.Duration,
+    entry.EndTimestamp
+  );
+
+  // Check whether booking is currently active
+  if (
+    !startTime ||
+    now < startTime ||
+    now >= endTime ||
+    entry.EarlyLogout === true
+  ) {
+    alert("Early Logout is available only during an active booking.");
+    return;
+  }
+
+  const confirmLogout = window.confirm(
+    `Are you sure you want to logout student ${entry.ID} from ${entry.PC}?`
+  );
+
+  if (!confirmLogout) return;
+
+  try {
+    const logoutTime = new Date().toISOString();
+
+    await updateDoc(doc(db, "approved", entry.id), {
+      EndTimestamp: logoutTime,
+      EarlyLogout: true,
+      EarlyLogoutAt: logoutTime,
+    });
+
+    alert("Student logged out successfully. The PC is now available.");
+
+  } catch (error) {
+    console.error("Early Logout failed:", error);
+    alert("Early Logout failed. Please try again.");
+  }
+};
     const exportToExcel = () => {
     const now = new Date();
 
@@ -1071,6 +1121,41 @@ const getPendingEndTime = (entry) => {
   return end;
 };
 
+// Check whether this is the student's second E-Resource booking today
+// Check whether this is the student's second E-Resource booking today
+const isSecondEResourceBooking = (entry) => {
+  if (entry?.room !== "E-Resource") return false;
+
+  const studentId = String(entry.hostId || entry.ID || "").trim();
+
+  if (!studentId) return false;
+
+  const today = new Date().toDateString();
+  const now = new Date();
+
+  // Find completed E-Resource bookings for this student today
+  const completedBookings = approved.filter((booking) => {
+    if (booking.Room !== "E-Resource") return false;
+    if (String(booking.ID).trim() !== studentId) return false;
+
+    const startTime = convertToDate(booking.Timestamp);
+
+    if (!startTime || startTime.toDateString() !== today) {
+      return false;
+    }
+
+    const endTime = calculateEndTime(
+      booking.Timestamp,
+      booking.Duration,
+      booking.EndTimestamp
+    );
+
+    return endTime && endTime <= now;
+  });
+
+  return completedBookings.length === 1;
+};
+
 // Notifications for teachers added through Add Patron
 const teacherNotificationGroups = Object.values(
   approved
@@ -1145,7 +1230,7 @@ if (!ts) return false;
             })()
           : true;
 
-          const now = new Date();
+          //const now = new Date();
 
       const normalizeRoom = (room) =>
         (room || "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -1195,7 +1280,22 @@ const bStart = convertToDate(b.Timestamp) || new Date(0);
     });
 
   return (
-    <div className="admin-body">
+    <div className="admin-page">
+
+  {/* College Header */}
+  <header className="college-header">
+    <div className="college-logo">
+      <img src="/ves-logo.png" alt="VES Logo" />
+    </div>
+
+    <div className="college-title">
+      <h2>Vivekanand Education Society's</h2>
+      <h3>College of Arts, Science & Commerce (Autonomous)</h3>
+      <h4>Learning Resource Centre</h4>
+    </div>
+  </header>
+
+  <div className="admin-body">
       <div className="sidebar">
         <h2>Admin</h2>
         <p>👤 {userEmail}</p>
@@ -1222,6 +1322,13 @@ const bStart = convertToDate(b.Timestamp) || new Date(0);
       return (
         <div className="notification-item" key={e.id}>
           <h5>🟡 New Booking Request</h5>
+
+          {isSecondEResourceBooking(e) && (
+  <p className="second-booking-message">
+    ⚠️ This is the student's second booking today.
+    First booking has been completed.
+  </p>
+)}
 
           <p><strong>Student ID:</strong> {ids}</p>
           <p><strong>Room:</strong> {e.room || "N/A"}</p>
@@ -1324,6 +1431,12 @@ const bStart = convertToDate(b.Timestamp) || new Date(0);
         {pending.length ? (
           <div className="admin-controls">
             <p>{pending[0].room} requested. Approve?</p>
+
+            {isSecondEResourceBooking(pending[0]) && (
+  <p className="second-booking-message">
+    ⚠️ This is the student's second E-Resource booking today.
+  </p>
+)}
 
             <p>
               <strong>Host ID:</strong>{" "}
@@ -1435,9 +1548,9 @@ const bStart = convertToDate(b.Timestamp) || new Date(0);
             Add Patron
           </button>
 
-          <button onClick={() => setShowSpecialForm(true)}>
+          {/* <button onClick={() => setShowSpecialForm(true)}>
             Special Booking
-          </button>
+          </button> */}
 
           <select
             value={selectedRoom}
@@ -1564,7 +1677,7 @@ const bStart = convertToDate(b.Timestamp) || new Date(0);
             </button>
           </div>
         )}
-        {showSpecialForm && (
+       {/*  {showSpecialForm && (
   <div className="admin-form special-booking-form">
     <h3>Special Booking</h3>
 
@@ -1689,8 +1802,8 @@ const bStart = convertToDate(b.Timestamp) || new Date(0);
     <button onClick={() => setShowSpecialForm(false)}>
       Cancel
     </button>
-  </div>
-)}
+  </div> 
+)}*/}
 
         <div className="admin-table">
           <table>
@@ -1842,22 +1955,50 @@ const bStart = convertToDate(b.Timestamp) || new Date(0);
                           </button>
                         </>
                       ) : (
-                        <>
-                          <button
-                            className="light-btn"
-                            onClick={() => handleEdit(e)}
-                          >
-                            Edit
-                          </button>
+  <>
+    {e.Room === "E-Resource" && (() => {
+      const startTime = convertToDate(e.Timestamp);
 
-                          <button
-                            className="remove-btn"
-                            onClick={() => handleRemove(e)}
-                          >
-                            Remove
-                          </button>
-                        </>
-                      )}
+      const bookingEndTime = calculateEndTime(
+        e.Timestamp,
+        e.Duration,
+        e.EndTimestamp
+      );
+
+      const isBookingActive =
+        startTime &&
+        currentTime >= startTime &&
+        currentTime < bookingEndTime &&
+        e.EarlyLogout !== true;
+
+      return (
+        <button
+          className="early-logout-btn"
+          disabled={!isBookingActive}
+          onClick={() => handleEarlyLogout(e)}
+        >
+          {e.EarlyLogout
+            ? "Logged Out"
+            : "Early Logout"}
+        </button>
+      );
+    })()}
+
+    <button
+      className="light-btn"
+      onClick={() => handleEdit(e)}
+    >
+      Edit
+    </button>
+
+    <button
+      className="remove-btn"
+      onClick={() => handleRemove(e)}
+    >
+      Remove
+    </button>
+  </>
+)}
                     </td>
                   </tr>
                 );
@@ -1865,7 +2006,8 @@ const bStart = convertToDate(b.Timestamp) || new Date(0);
             </tbody>
           </table>
         </div>
-      </div>
+            </div>
+    </div>
     </div>
   );
 };

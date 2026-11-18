@@ -236,6 +236,7 @@ const checkStudentUsedDiscussion = async (studentId) => {
 };
 
 
+
 const checkStudentUsedEResource = async (studentId) => {
   try {
     const today = new Date();
@@ -254,54 +255,109 @@ const checkStudentUsedEResource = async (studentId) => {
       23, 59, 59, 999
     );
 
-    // Check pending requests
+    // Convert Firestore Timestamp or normal date into Date
+    const convertToDate = (value) => {
+      if (!value) return null;
+
+      const date =
+        typeof value.toDate === "function"
+          ? value.toDate()
+          : new Date(value);
+
+      return Number.isNaN(date.getTime()) ? null : date;
+    };
+
+    // 1. Check whether the student already has a pending request
     const requestSnapshot = await getDocs(
       collection(db, "requests")
     );
 
-    for (const doc of requestSnapshot.docs) {
+    const pendingRequest = requestSnapshot.docs.some((doc) => {
       const data = doc.data();
 
       if (
-        data.room === "E-Resource" &&
-        data.hostId === studentId &&
-        data.bookingStart
+        data.room !== "E-Resource" ||
+        String(data.hostId).trim() !== String(studentId).trim()
       ) {
-        const bookingDate = data.bookingStart.toDate();
-
-        if (
-          bookingDate >= startOfDay &&
-          bookingDate <= endOfDay
-        ) {
-          return true;
-        }
+        return false;
       }
+
+      const bookingDate = convertToDate(data.bookingStart);
+
+      return (
+        bookingDate &&
+        bookingDate >= startOfDay &&
+        bookingDate <= endOfDay
+      );
+    });
+
+    if (pendingRequest) {
+      alert(
+        "Your previous E-Resource request is still pending. Please wait for admin approval."
+      );
+      return true;
     }
 
-    // Check approved bookings
+    // 2. Check approved E-Resource bookings
     const approvedSnapshot = await getDocs(
       collection(db, "approved")
     );
 
-    for (const doc of approvedSnapshot.docs) {
+    let completedBookings = 0;
+    let incompleteBooking = false;
+
+    approvedSnapshot.forEach((doc) => {
       const data = doc.data();
 
       if (
-        data.Room === "E-Resource" &&
-        data.ID === studentId &&
-        data.Timestamp
+        data.Room !== "E-Resource" ||
+        String(data.ID).trim() !== String(studentId).trim() ||
+        !data.Timestamp
       ) {
-        const bookingDate = new Date(data.Timestamp);
-
-        if (
-          bookingDate >= startOfDay &&
-          bookingDate <= endOfDay
-        ) {
-          return true;
-        }
+        return;
       }
+
+      const bookingDate = convertToDate(data.Timestamp);
+
+      if (
+        !bookingDate ||
+        bookingDate < startOfDay ||
+        bookingDate > endOfDay
+      ) {
+        return;
+      }
+
+      const endTime = calculateEndTime(
+        data.Timestamp,
+        data.Duration,
+        data.EndTimestamp
+      );
+
+      // Booking is not completed yet
+      if (!endTime || new Date() < endTime) {
+        incompleteBooking = true;
+      } else {
+        completedBookings++;
+      }
+    });
+
+    // First booking has not been completed
+    if (incompleteBooking) {
+      alert(
+        "Your previous E-Resource booking is not completed yet. You can book again only after it is completed."
+      );
+      return true;
     }
 
+    // Two bookings have already been completed
+    if (completedBookings >= 2) {
+      alert(
+        "You have already completed two E-Resource bookings today. You cannot book again today."
+      );
+      return true;
+    }
+
+    // No booking or exactly one completed booking
     return false;
 
   } catch (error) {
@@ -310,7 +366,8 @@ const checkStudentUsedEResource = async (studentId) => {
       error
     );
 
-    return false;
+    alert("Unable to verify your booking history. Please try again.");
+    return true;
   }
 };
 
@@ -614,14 +671,11 @@ const checkDiscussionRoomCapacity = async (selectedRoom, newMemberCount) => {
 }
 
     if (room === "E-Resource") {
-       const alreadyUsed = await checkStudentUsedEResource(
+  const alreadyUsed = await checkStudentUsedEResource(
     trimmedHostId
   );
 
-    if (alreadyUsed) {
-    alert(
-      "You have already booked E-Resource today. You can access E-Resource only once per day."
-    );
+  if (alreadyUsed) {
     return;
   }
 }

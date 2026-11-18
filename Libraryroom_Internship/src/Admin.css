@@ -648,3 +648,96 @@ tr:hover {
   margin-top: 10px;
   cursor: pointer;
 }
+
+.second-booking-message {
+  color: #b45309;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  padding: 10px;
+  border-radius: 6px;
+  font-weight: 600;
+  margin: 10px 0;
+}
+
+/* Main Admin Page */
+.admin-page {
+  width: 100%;
+  min-height: 100vh;
+  background: #f5f6fa;
+}
+
+/* College Header */
+.college-header {
+  width: 100%;
+  min-height: 130px;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: 15px 30px;
+  box-sizing: border-box;
+  border-bottom: 1px solid #ddd;
+}
+
+/* VES Logo */
+.college-logo {
+  position: absolute;
+  left: 35px;
+  display: flex;
+  align-items: center;
+}
+
+.college-logo img {
+  width: 95px;
+  height: 105px;
+  object-fit: contain;
+}
+
+/* College Text */
+.college-title {
+  text-align: center;
+  line-height:1.8}
+
+.college-title h2 {
+  color: #8b2942;
+  font-size: 25px;
+  font-weight: 800;
+  margin: 0;
+}
+
+.college-title h3 {
+  color: #222;
+  font-size: 20px;
+  font-weight: 700;
+  margin: 2px 0;
+}
+
+.college-title h4 {
+  color: #222;
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.early-logout-btn {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 8px;
+  background-color: #ff9800;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.early-logout-btn:hover:not(:disabled) {
+  background-color: #e68900;
+}
+
+.early-logout-btn:disabled {
+  background-color: #d3d3d3;
+  color: #777;
+  cursor: not-allowed;
+}
