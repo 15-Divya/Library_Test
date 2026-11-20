@@ -661,41 +661,39 @@ if (isDiscussion) {
 
   // Early Logout for E-Resource only
 
-const handleEarlyLogout = async (entry) => {
+
+const handleEarlyLogout = async (entry, booking) => {
   if (entry.Room !== "E-Resource") return;
 
   const now = new Date();
 
-  const startTime = convertToDate(entry.Timestamp);
+  // Use the individual booking's times
+  const startTime = booking.start;
+  const endTime = booking.end;
 
-  const endTime = calculateEndTime(
-    entry.Timestamp,
-    entry.Duration,
-    entry.EndTimestamp
-  );
-
-  // Check whether booking is currently active
   if (
+    !booking.id ||
     !startTime ||
+    !endTime ||
     now < startTime ||
     now >= endTime ||
-    entry.EarlyLogout === true
+    booking.EarlyLogout === true
   ) {
     alert("Early Logout is available only during an active booking.");
     return;
   }
 
   const confirmLogout = window.confirm(
-    `Are you sure you want to logout student ${entry.ID} from ${entry.PC}?`
+    `Are you sure you want to logout student ${entry.ID} from ${booking.PC}?`
   );
 
   if (!confirmLogout) return;
 
   try {
-    // Store the exact current time as Out Time
     const logoutTime = new Date().toISOString();
 
-    await updateDoc(doc(db, "approved", entry.id), {
+    // Update ONLY the selected booking
+    await updateDoc(doc(db, "approved", booking.id), {
       EndTimestamp: logoutTime,
       EarlyLogout: true,
       EarlyLogoutAt: logoutTime,
@@ -708,6 +706,7 @@ const handleEarlyLogout = async (entry) => {
     alert("Early Logout failed. Please try again.");
   }
 };
+
 
     const exportToExcel = () => {
     const now = new Date();
@@ -803,13 +802,13 @@ const handleEarlyLogout = async (entry) => {
 
     
 
+
 const makeSheetData = (records) => {
   const groups = {};
 
   // Group bookings by Student ID, Room and Date
   records.forEach((entry) => {
     const start = getBookingDate(entry.Timestamp);
-
     if (!start) return;
 
     const dateKey = [
@@ -824,66 +823,87 @@ const makeSheetData = (records) => {
       dateKey,
     ].join("_");
 
+    const bookingEnd = calculateEndTime(
+      entry.Timestamp,
+      entry.Duration,
+      entry.EndTimestamp
+    );
+
+    const bookingDetail = {
+      PC: entry.PC || "",
+      start,
+      end: bookingEnd,
+    };
+
     if (!groups[key]) {
       groups[key] = {
         ...entry,
-        totalMinutes: getDurationMinutes(entry),
-        bookingCount: 1,
-        allPCs: [entry.PC].filter(Boolean),
+        totalMinutes: 0,
+        allPCs: [],
+        bookingDetails: [],
       };
-    } else {
-      groups[key].totalMinutes += getDurationMinutes(entry);
-      groups[key].bookingCount += 1;
+    }
 
-      if (entry.PC && !groups[key].allPCs.includes(entry.PC)) {
-        groups[key].allPCs.push(entry.PC);
-      }
+    groups[key].totalMinutes += getDurationMinutes(entry);
+    groups[key].bookingDetails.push(bookingDetail);
+
+    if (entry.PC && !groups[key].allPCs.includes(entry.PC)) {
+      groups[key].allPCs.push(entry.PC);
     }
   });
 
   return Object.values(groups).map((group) => {
-    const start = getBookingDate(group.Timestamp);
+    // Sort all bookings by starting time
+    const bookings = [...group.bookingDetails].sort(
+      (a, b) => a.start - b.start
+    );
 
-    let end;
-
-    // Preserve actual early logout time for a single booking
-    if (group.bookingCount === 1 && group.EarlyLogout === true) {
-      end = getBookingDate(group.EndTimestamp);
-    } else {
-      end = new Date(start);
-
-      end.setMinutes(
-        end.getMinutes() + group.totalMinutes
-      );
-    }
+    const firstBooking = bookings[0];
 
     const {
       id,
       Timestamp,
       EndTimestamp,
-       EarlyLogoutAt,
-  EarlyLogout,
+      EarlyLogoutAt,
+      EarlyLogout,
       SourceRequestID,
       CreatedAt,
       GroupBookingID,
       SpecialBooking,
       GrantedBy,
       totalMinutes,
-      bookingCount,
       allPCs,
+      bookingDetails,
       ...cleanData
     } = group;
 
     return {
       ...cleanData,
+
       PC: allPCs.join(", "),
+
       Duration: `${(totalMinutes / 60).toFixed(1)} hours`,
-      Date: start ? start.toLocaleDateString("en-IN") : "",
-      InTime: start ? start.toLocaleTimeString("en-IN") : "",
-      OutTime: end ? end.toLocaleTimeString("en-IN") : "",
+
+      Date: firstBooking
+        ? firstBooking.start.toLocaleDateString("en-IN")
+        : "",
+
+      // Show every booking time in the same Excel cell
+      InTime: bookings
+        .map((booking) =>
+          booking.start.toLocaleTimeString("en-IN")
+        )
+        .join("\n"),
+
+      OutTime: bookings
+        .map((booking) =>
+          booking.end.toLocaleTimeString("en-IN")
+        )
+        .join("\n"),
     };
   });
 };
+
 
 
 
@@ -1369,60 +1389,87 @@ else if (exportType === "all") {
     return matchesDate && matchesRoom;
   });
 
-  const groups = {};
+ 
+const groups = {};
 
-  filtered.forEach((entry) => {
-    const date = convertToDate(entry.Timestamp);
+filtered.forEach((entry) => {
+  const start = convertToDate(entry.Timestamp);
+  if (!start) return;
 
-    const key = [
-      String(entry.ID).trim(),
-      entry.Room,
-      date.toLocaleDateString("en-CA"),
-    ].join("_");
+  const dateKey = [
+    start.getFullYear(),
+    start.getMonth(),
+    start.getDate(),
+  ].join("-");
 
-    if (!groups[key]) {
-      groups[key] = {
-        ...entry,
-        allBookingIds: [entry.id],
-        totalMinutes: getDurationMinutes(entry),
-        bookingCount: 1,
-      };
-    } else {
-      groups[key].allBookingIds.push(entry.id);
-      groups[key].totalMinutes += getDurationMinutes(entry);
-      groups[key].bookingCount += 1;
-    }
+  const key = [
+    String(entry.ID).trim(),
+    entry.Room,
+    dateKey,
+  ].join("_");
+
+  // Calculate the actual end time of this particular booking
+  const end = calculateEndTime(
+    entry.Timestamp,
+    entry.Duration,
+    entry.EndTimestamp
+  );
+
+  const actualMinutes = getDurationMinutes(entry);
+
+  const bookingDetail = {
+  id: entry.id,
+  PC: entry.PC || "-",
+  start,
+  end,
+  minutes: actualMinutes,
+  EarlyLogout: entry.EarlyLogout === true,
+};
+
+  if (!groups[key]) {
+    groups[key] = {
+      ...entry,
+      allBookingIds: [entry.id],
+      bookingDetails: [bookingDetail],
+      totalMinutes: actualMinutes,
+      bookingCount: 1,
+    };
+  } else {
+    groups[key].allBookingIds.push(entry.id);
+    groups[key].bookingDetails.push(bookingDetail);
+    groups[key].totalMinutes += actualMinutes;
+    groups[key].bookingCount += 1;
+  }
+});
+
+return Object.values(groups)
+  .map((group) => {
+    // Show individual bookings in chronological order
+    const bookingDetails = [...group.bookingDetails].sort(
+      (a, b) => a.start - b.start
+    );
+
+    const firstBooking = bookingDetails[0];
+    const lastBooking = bookingDetails[bookingDetails.length - 1];
+
+    return {
+      ...group,
+      Timestamp: firstBooking.start.toISOString(),
+      EndTimestamp: lastBooking.end
+        ? lastBooking.end.toISOString()
+        : "",
+      PC: bookingDetails.map((booking) => booking.PC).join(", "),
+      Duration: `${(group.totalMinutes / 60).toFixed(1)} hours`,
+      bookingDetails,
+    };
+  })
+  .sort((a, b) => {
+    return (
+      convertToDate(b.Timestamp) - convertToDate(a.Timestamp)
+    );
   });
 
-  return Object.values(groups)
-    .map((group) => {
-      const start = convertToDate(group.Timestamp);
 
-// Preserve actual Early Logout time for a single booking
-let combinedEnd;
-
-if (group.bookingCount === 1 && group.EarlyLogout === true) {
-  combinedEnd = convertToDate(group.EndTimestamp);
-} else {
-  combinedEnd = new Date(start);
-
-  combinedEnd.setMinutes(
-    combinedEnd.getMinutes() + group.totalMinutes
-  );
-}
-
-      return {
-        ...group,
-        Duration: `${(group.totalMinutes / 60).toFixed(1)} hours`,
-        EndTimestamp: combinedEnd.toISOString(),
-      };
-    })
-   .sort((a, b) => {
-  const aStart = convertToDate(a.Timestamp);
-  const bStart = convertToDate(b.Timestamp);
-
-  return bStart - aStart;
-});
 })();
 
           //const now = new Date();
@@ -1976,14 +2023,15 @@ if (group.bookingCount === 1 && group.EarlyLogout === true) {
               {filteredApproved.map((e, i) => {
                 const isEditing = editRowId === e.id;
 
-                const endTime = calculateEndTime(
-                  isEditing ? editData.Timestamp : e.Timestamp,
-                  isEditing ? editData.Duration : e.Duration,
-                  isEditing ? editData.EndTimestamp : e.EndTimestamp
-                );
+                const endTime = e.bookingDetails?.length
+  ? e.bookingDetails[e.bookingDetails.length - 1].end
+  : calculateEndTime(
+      isEditing ? editData.Timestamp : e.Timestamp,
+      isEditing ? editData.Duration : e.Duration,
+      isEditing ? editData.EndTimestamp : e.EndTimestamp
+    );
 
-                const isExpired = new Date() > endTime;
-
+const isExpired = endTime ? currentTime > endTime : false;
                 return (
                   <tr
                     key={i}
@@ -2008,7 +2056,13 @@ if (group.bookingCount === 1 && group.EarlyLogout === true) {
 
                     <td>{e.Role}</td>
                     <td>{e.Room}</td>
-                    <td>{e.PC || "-"}</td>
+                    <td>
+  {e.bookingDetails?.map((booking, index) => (
+    <div key={booking.id || index}>
+      {booking.PC}
+    </div>
+  ))}
+</td>
 
                     <td>
                       {isEditing ? (
@@ -2045,23 +2099,27 @@ if (group.bookingCount === 1 && group.EarlyLogout === true) {
     : "-"}
 </td>
 
-                    <td>
-                      {isEditing ? (
-                        <input
-                          type="datetime-local"
-                          value={editData.Timestamp.slice(0, 16)}
-                          onChange={(ev) =>
-                            handleEditChange("Timestamp", ev.target.value)
-                          }
-                        />
-                      ) : (
-                        convertToDate(e.Timestamp)
-  ? convertToDate(e.Timestamp).toLocaleTimeString("en-IN")
-  : "-"
-                      )}
-                    </td>
+                   <td>
+  {isEditing ? (
+    <input
+      type="datetime-local"
+      value={editData.Timestamp.slice(0, 16)}
+      onChange={(ev) =>
+        handleEditChange("Timestamp", ev.target.value)
+      }
+    />
+  ) : (
+    e.bookingDetails?.map((booking, index) => (
+      <div key={booking.id || index}>
+        {booking.start
+          ? booking.start.toLocaleTimeString("en-IN")
+          : "-"}
+      </div>
+    ))
+  )}
+</td>
 
-                    <td>
+                   <td>
   {isEditing ? (
     <input
       type="datetime-local"
@@ -2071,16 +2129,25 @@ if (group.bookingCount === 1 && group.EarlyLogout === true) {
       }
     />
   ) : (
-    <span
-      style={{
-        color: isExpired ? "red" : "inherit",
-        fontWeight: isExpired ? "bold" : "normal",
-      }}
-    >
-      {convertToDate(endTime)
-        ? convertToDate(endTime).toLocaleTimeString("en-IN")
-        : "-"}
-    </span>
+    e.bookingDetails?.map((booking, index) => (
+      <div
+        key={booking.id || index}
+        style={{
+          color:
+            booking.end && currentTime > booking.end
+              ? "red"
+              : "inherit",
+          fontWeight:
+            booking.end && currentTime > booking.end
+              ? "bold"
+              : "normal",
+        }}
+      >
+        {booking.end
+          ? booking.end.toLocaleTimeString("en-IN")
+          : "-"}
+      </div>
+    ))
   )}
 </td>
 
@@ -2106,33 +2173,35 @@ if (group.bookingCount === 1 && group.EarlyLogout === true) {
                         </>
                       ) : (
   <>
-    {e.Room === "E-Resource" && (() => {
-      const startTime = convertToDate(e.Timestamp);
+  {e.Room === "E-Resource" && (() => {
+  const activeBooking = (e.bookingDetails || [])
+    .filter(
+      (booking) =>
+        booking.start &&
+        booking.end &&
+        currentTime >= booking.start &&
+        currentTime < booking.end
+    )
+    .sort((a, b) => b.start - a.start)[0];
 
-      const bookingEndTime = calculateEndTime(
-        e.Timestamp,
-        e.Duration,
-        e.EndTimestamp
-      );
+  const isBookingActive =
+    activeBooking && activeBooking.EarlyLogout !== true;
 
-      const isBookingActive =
-        startTime &&
-        currentTime >= startTime &&
-        currentTime < bookingEndTime &&
-        e.EarlyLogout !== true;
-
-      return (
-        <button
-          className="early-logout-btn"
-          disabled={!isBookingActive}
-          onClick={() => handleEarlyLogout(e)}
-        >
-          {e.EarlyLogout
-            ? "Logged Out"
-            : "Early Logout"}
-        </button>
-      );
-    })()}
+  return (
+    <button
+      className="early-logout-btn"
+      disabled={!isBookingActive}
+      onClick={() => handleEarlyLogout(e, activeBooking)}
+    >
+      {!activeBooking
+        ? "Early Logout"
+        : activeBooking.EarlyLogout
+        ? "Logged Out"
+        : "Early Logout"}
+    </button>
+  );
+})()}
+  
 
     <button
       className="light-btn"
