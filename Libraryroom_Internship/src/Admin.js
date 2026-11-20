@@ -918,17 +918,19 @@ data.forEach((entry) => {
 
   if (!dateSummary[date]) {
     dateSummary[date] = {
-      Date: date,
-      eResourceMembers: 0,
-      discussionGroups: new Set(),
-      discussionMembers: 0,
-      periodicalMembers: 0,
-    };
+  Date: date,
+  eResourceStudents: new Set(),
+  discussionGroups: new Set(),
+  discussionMembers: 0,
+  periodicalMembers: 0,
+};
   }
 
   if (isEResourceRoom(entry.Room)) {
-    dateSummary[date].eResourceMembers++;
-  }
+  dateSummary[date].eResourceStudents.add(
+    String(entry.ID).trim()
+  );
+}
 
   if (isDiscussionRoom(entry.Room)) {
     dateSummary[date].discussionMembers++;
@@ -952,7 +954,7 @@ const summaryData = Object.values(dateSummary)
     if (selectedRoom === "E-Resource Room") {
       return {
         Date: item.Date,
-        "E-Resource Members": item.eResourceMembers,
+        "E-Resource Members": item.eResourceStudents.size,
       };
     }
 
@@ -974,7 +976,7 @@ const summaryData = Object.values(dateSummary)
     // All Rooms - keep existing summary
     return {
       Date: item.Date,
-      "E-Resource Members": item.eResourceMembers,
+      "E-Resource Members": item.eResourceStudents.size,
       "Discussion Groups": item.discussionGroups.size,
       "Discussion Members": item.discussionMembers,
     };
