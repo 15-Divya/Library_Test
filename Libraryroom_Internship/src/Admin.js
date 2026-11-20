@@ -37,7 +37,8 @@ const AdminPanel = () => {
   const [newBookingTime, setNewBookingTime] = useState("");
   const [editRowId, setEditRowId] = useState(null);
   const [editData, setEditData] = useState({});
-  const [exportType, setExportType] = useState("all");
+  //const [exportType, setExportType] = useState("all");
+  const [exportType, setExportType] = useState("day");
   const [userEmail, setUserEmail] = useState("");
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
@@ -1311,8 +1312,39 @@ const filteredApproved = (() => {
 
     if (!ts) return false;
 
-    const matchesDate =
-      ts >= startOfToday && ts <= now;
+    let matchesDate = true;
+
+if (exportType === "day") {
+  matchesDate = ts.toDateString() === now.toDateString();
+}
+
+else if (exportType === "yesterday") {
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  matchesDate = ts.toDateString() === yesterday.toDateString();
+}
+
+else if (exportType === "month") {
+  matchesDate =
+    ts.getMonth() === now.getMonth() &&
+    ts.getFullYear() === now.getFullYear();
+}
+
+else if (exportType === "custom") {
+  if (customStartDate && customEndDate) {
+    const start = new Date(`${customStartDate}T00:00:00`);
+    const end = new Date(`${customEndDate}T23:59:59.999`);
+
+    matchesDate = ts >= start && ts <= end;
+  } else {
+    matchesDate = false;
+  }
+}
+
+else if (exportType === "all") {
+  matchesDate = true;
+}
 
     const normalizeRoom = (room) =>
       (room || "").toLowerCase().replace(/[^a-z0-9]/g, "");
