@@ -57,6 +57,16 @@ const AdminPanel = () => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
+const visiblePending = pending.filter((entry) => {
+  const requestDate = convertToDate(entry.bookingStart);
+
+  return (
+    requestDate &&
+     requestDate.toDateString() === currentTime.toDateString()
+    //requestDate.toDateString() === "OLD_DATE"
+  );
+});
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       if (!user) {
@@ -1060,7 +1070,7 @@ const getLiveOccupancy = () => {
   const activeGroups = new Map();
 
   // Check pending requests
-  pending.forEach((entry) => {
+ visiblePending.forEach((entry) => {
     const room =
       entry.room === "Discussion Room"
         ? "Discussion Room 1"
@@ -1166,7 +1176,7 @@ const getDailyUsage = () => {
   const eResourceStudents = new Set();
 
   // Check today's pending requests
-  pending.forEach((entry) => {
+  visiblePending.forEach((entry) => {
     const date = convertToDate(entry.bookingStart);
 
     if (!date || date.toDateString() !== today) return;
@@ -1509,7 +1519,7 @@ return Object.values(groups)
   <div className="notification-list">
 
     {/* PENDING BOOKING REQUESTS */}
-    {pending.map((e) => {
+  {visiblePending.map((e) => {
       const startTime = convertToDate(e.bookingStart);
       const endTime = getPendingEndTime(e);
 
@@ -1615,7 +1625,7 @@ return Object.values(groups)
       );
     })}
 
-    {pending.length === 0 &&
+    {visiblePending.length === 0 &&
       teacherNotificationGroups.length === 0 && (
         <p className="no-notifications">
           No new notifications.
@@ -1627,11 +1637,11 @@ return Object.values(groups)
       </div>
 
       <div className="main-content">
-        {pending.length ? (
+       {visiblePending.length ? (
           <div className="admin-controls">
-            <p>{pending[0].room} requested. Approve?</p>
+            <p>{visiblePending[0].room} requested. Approve?</p>
 
-            {isSecondEResourceBooking(pending[0]) && (
+            {isSecondEResourceBooking(visiblePending[0]) && (
   <p className="second-booking-message">
     ⚠️ This is the student's second E-Resource booking today.
   </p>
@@ -1639,31 +1649,31 @@ return Object.values(groups)
 
             <p>
               <strong>Host ID:</strong>{" "}
-              {pending[0].hostId ||
-                pending[0].ID ||
-                pending[0].allIds?.[0] ||
+              {visiblePending[0].hostId ||
+                visiblePending[0].ID ||
+                visiblePending[0].allIds?.[0] ||
                 "N/A"}
             </p>
 
-            {Array.isArray(pending[0].allIds) &&
-              pending[0].allIds.length > 1 && (
+            {Array.isArray(visiblePending[0].allIds) &&
+              visiblePending[0].allIds.length > 1 && (
                 <p>
                   <strong>Member IDs:</strong>{" "}
-                  {pending[0].allIds.slice(1).join(", ")}
+                  {visiblePending[0].allIds.slice(1).join(", ")}
                 </p>
               )}
 
             <div className="admin-controls-buttons">
               <button
                 className="agree"
-                onClick={() => handleAction(pending[0], "agree")}
+                onClick={() => handleAction(visiblePending[0], "agree")}
               >
                 Agree
               </button>
 
               <button
                 className="disagree"
-                onClick={() => handleAction(pending[0], "disagree")}
+                onClick={() => handleAction(visiblePending[0], "disagree")}
               >
                 Disagree
               </button>
