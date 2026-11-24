@@ -918,53 +918,113 @@ const makeSheetData = (records) => {
 
 
     // Date-wise Summary
+
+// Date-wise Summary
 const dateSummary = {};
+
+const getRoomCategory = (room) => {
+  if (isEResourceRoom(room)) return "eResource";
+  if (isDiscussionRoom(room)) return "discussion";
+  if (normalizeRoom(room) === "periodicalroom") return "periodical";
+  return null;
+};
+
+const formatTotalTime = (minutes) => {
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = Math.round(minutes % 60);
+
+  return `${hours} hrs ${remainingMinutes} mins`;
+};
 
 data.forEach((entry) => {
   const bookingDate = getBookingDate(entry.Timestamp);
   if (!bookingDate) return;
 
   const date = bookingDate.toLocaleDateString("en-IN");
+  const roomCategory = getRoomCategory(entry.Room);
+
+  if (!roomCategory) return;
 
   if (!dateSummary[date]) {
     dateSummary[date] = {
-  Date: date,
-  eResourceStudents: new Set(),
-  discussionGroups: new Set(),
-  discussionMembers: 0,
-  periodicalMembers: 0,
-};
+      Date: date,
+      eResourceStudents: new Set(),
+      discussionGroups: new Set(),
+      discussionMembers: 0,
+      periodicalMembers: 0,
+
+      roomMinutes: {
+        eResource: 0,
+        discussion: 0,
+        periodical: 0,
+      },
+
+      countedBookings: new Set(),
+    };
   }
 
-  if (isEResourceRoom(entry.Room)) {
-  dateSummary[date].eResourceStudents.add(
-    String(entry.ID).trim()
-  );
-}
+  const summary = dateSummary[date];
 
-  if (isDiscussionRoom(entry.Room)) {
-    dateSummary[date].discussionMembers++;
+  // Existing student/group counts
+  if (roomCategory === "eResource") {
+    summary.eResourceStudents.add(
+      String(entry.ID).trim()
+    );
+  }
+
+  if (roomCategory === "discussion") {
+    summary.discussionMembers++;
 
     const groupId =
       entry.SourceRequestID ||
-      entry.GroupID ||
+      entry.GroupBookingID ||
       `${entry.Timestamp}_${entry.Room}_${entry.Purpose}`;
 
-    dateSummary[date].discussionGroups.add(groupId);
+    summary.discussionGroups.add(groupId);
   }
 
-  if (normalizeRoom(entry.Room) === "periodicalroom") {
-    dateSummary[date].periodicalMembers++;
+  if (roomCategory === "periodical") {
+    summary.periodicalMembers++;
+  }
+
+  // Identify individual room-use sessions.
+  // Discussion group members share one room-use session.
+  let bookingKey;
+
+  if (roomCategory === "discussion") {
+    bookingKey =
+      entry.SourceRequestID ||
+      entry.GroupBookingID ||
+      `${entry.Timestamp}_${entry.Room}_${entry.Purpose}`;
+  } else {
+    bookingKey =
+      entry.GroupBookingID ||
+      entry.SourceRequestID ||
+      `${String(entry.ID).trim()}_${entry.Room}_${entry.Timestamp}_${entry.PC || ""}`;
+  }
+
+  const uniqueKey = `${roomCategory}_${bookingKey}`;
+
+  // Add duration only once for each room-use session
+  if (!summary.countedBookings.has(uniqueKey)) {
+    summary.countedBookings.add(uniqueKey);
+
+    summary.roomMinutes[roomCategory] +=
+      getDurationMinutes(entry);
   }
 });
 
 // Generate summary according to selected room
 const summaryData = Object.values(dateSummary)
   .map((item) => {
+
     if (selectedRoom === "E-Resource Room") {
       return {
         Date: item.Date,
         "E-Resource Members": item.eResourceStudents.size,
+        "Total Time Used": formatTotalTime(
+          item.roomMinutes.eResource
+        ),
       };
     }
 
@@ -973,6 +1033,9 @@ const summaryData = Object.values(dateSummary)
         Date: item.Date,
         "Discussion Groups": item.discussionGroups.size,
         "Discussion Members": item.discussionMembers,
+        "Total Time Used": formatTotalTime(
+          item.roomMinutes.discussion
+        ),
       };
     }
 
@@ -980,22 +1043,40 @@ const summaryData = Object.values(dateSummary)
       return {
         Date: item.Date,
         "Periodical Members": item.periodicalMembers,
+        "Total Time Used": formatTotalTime(
+          item.roomMinutes.periodical
+        ),
       };
     }
 
-    // All Rooms - keep existing summary
+    // All Rooms - separate usage for each room
     return {
       Date: item.Date,
+
       "E-Resource Members": item.eResourceStudents.size,
+      "E-Resource Total Time": formatTotalTime(
+        item.roomMinutes.eResource
+      ),
+
       "Discussion Groups": item.discussionGroups.size,
       "Discussion Members": item.discussionMembers,
+      "Discussion Room Total Time": formatTotalTime(
+        item.roomMinutes.discussion
+      ),
+
+      "Periodical Room Total Time": formatTotalTime(
+        item.roomMinutes.periodical
+      ),
     };
   })
   .sort((a, b) => {
     const [ad, am, ay] = a.Date.split("/");
     const [bd, bm, by] = b.Date.split("/");
-    return new Date(ay, am - 1, ad) - new Date(by, bm - 1, bd);
+
+    return new Date(ay, am - 1, ad) -
+           new Date(by, bm - 1, bd);
   });
+
 
 
 

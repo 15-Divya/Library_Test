@@ -19,6 +19,7 @@ const Home = () => {
   const [timeDuration, setTimeDuration] = useState("1 hour");
   const [pc, setPc] = useState("");
   const [bookedPCs, setBookedPCs] = useState([]);
+  const [pcStatuses, setPcStatuses] = useState({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [roomAvailability, setRoomAvailability] = useState({
   "Discussion Room 1": true,
@@ -63,11 +64,11 @@ const calculateEndTime = (timestamp, duration, savedEndTime) => {
 
  const checkBookedPCs = async () => {
   try {
-    const currentlyBooked = [];
     const now = new Date();
+    const statuses = {};
 
     // =========================
-    // CHECK PENDING REQUESTS
+    // 1. CHECK PENDING REQUESTS
     // =========================
 
     const requestSnapshot = await getDocs(
@@ -77,33 +78,30 @@ const calculateEndTime = (timestamp, duration, savedEndTime) => {
     requestSnapshot.forEach((doc) => {
       const data = doc.data();
 
-      console.log("REQUEST DATA:", data);
-
       if (
         data.room === "E-Resource" &&
         data.pc &&
         data.bookingStart &&
         data.durationMinutes
       ) {
-        
+        const startTime =
+          typeof data.bookingStart.toDate === "function"
+            ? data.bookingStart.toDate()
+            : new Date(data.bookingStart);
 
-const startTime = data.bookingStart.toDate();
-
-const endTime = new Date(
-  startTime.getTime() + data.durationMinutes * 60 * 1000
-);
-
-
+        const endTime = new Date(
+          startTime.getTime() +
+            data.durationMinutes * 60 * 1000
+        );
 
         if (now >= startTime && now < endTime) {
-          currentlyBooked.push(data.pc);
+          statuses[data.pc] = "Booked";
         }
       }
     });
 
-
     // =========================
-    // CHECK APPROVED BOOKINGS
+    // 2. CHECK APPROVED BOOKINGS
     // =========================
 
     const approvedSnapshot = await getDocs(
@@ -113,8 +111,6 @@ const endTime = new Date(
     approvedSnapshot.forEach((doc) => {
       const data = doc.data();
 
-      console.log("APPROVED DATA:", data);
-
       if (
         data.Room === "E-Resource" &&
         data.PC &&
@@ -122,39 +118,33 @@ const endTime = new Date(
         data.Duration
       ) {
         const startTime =
-  typeof data.Timestamp.toDate === "function"
-    ? data.Timestamp.toDate()
-    : new Date(data.Timestamp);
+          typeof data.Timestamp.toDate === "function"
+            ? data.Timestamp.toDate()
+            : new Date(data.Timestamp);
 
-const endTime = calculateEndTime(
-  data.Timestamp,
-  data.Duration,
-  data.EndTimestamp
-);
-
-        
+        const endTime = calculateEndTime(
+          data.Timestamp,
+          data.Duration,
+          data.EndTimestamp
+        );
 
         if (now >= startTime && now < endTime) {
-          currentlyBooked.push(data.PC);
+          // Approved booking takes priority over pending status
+          statuses[data.PC] = "In Use";
         }
       }
     });
 
-
     // =========================
-    // REMOVE DUPLICATES
+    // 3. UPDATE PC STATUSES
     // =========================
 
-    const uniqueBookedPCs = [
-      ...new Set(currentlyBooked)
-    ];
+    setPcStatuses(statuses);
 
-    setBookedPCs(uniqueBookedPCs);
+    // Keep existing bookedPCs checks working
+    setBookedPCs(Object.keys(statuses));
 
-    console.log(
-      "Currently booked PCs:",
-      uniqueBookedPCs
-    );
+    console.log("PC Statuses:", statuses);
 
   } catch (error) {
     console.log(
@@ -881,31 +871,32 @@ await addDoc(collection(db, "requests"), {
     >
       <option value="">Select PC</option>
 
-      <option value="PC1" disabled={bookedPCs.includes("PC1")}>
-        PC1 {bookedPCs.includes("PC1") ? "(Booked)" : ""}
+      <option value="PC1" disabled={!!pcStatuses["PC1"]}>
+        PC1 {pcStatuses["PC1"] ? `(${pcStatuses["PC1"]})` : ""}
       </option>
 
-      <option value="PC2" disabled={bookedPCs.includes("PC2")}>
-        PC2 {bookedPCs.includes("PC2") ? "(Booked)" : ""}
+      <option value="PC2" disabled={!!pcStatuses["PC2"]}>
+        PC2 {pcStatuses["PC2"] ? `(${pcStatuses["PC2"]})` : ""}
       </option>
 
-      <option value="PC3" disabled={bookedPCs.includes("PC3")}>
-        PC3 {bookedPCs.includes("PC3") ? "(Booked)" : ""}
+      <option value="PC3" disabled={!!pcStatuses["PC3"]}>
+        PC3 {pcStatuses["PC3"] ? `(${pcStatuses["PC3"]})` : ""}
       </option>
 
-      <option value="PC4" disabled={bookedPCs.includes("PC4")}>
-        PC4 {bookedPCs.includes("PC4") ? "(Booked)" : ""}
+      <option value="PC4" disabled={!!pcStatuses["PC4"]}>
+        PC4 {pcStatuses["PC4"] ? `(${pcStatuses["PC4"]})` : ""}
       </option>
 
-      <option value="PC5" disabled={bookedPCs.includes("PC5")}>
-        PC5 {bookedPCs.includes("PC5") ? "(Booked)" : ""}
+      <option value="PC5" disabled={!!pcStatuses["PC5"]}>
+        PC5 {pcStatuses["PC5"] ? `(${pcStatuses["PC5"]})` : ""}
       </option>
 
-      <option value="PC6" disabled={bookedPCs.includes("PC6")}>
-        PC6 {bookedPCs.includes("PC6") ? "(Booked)" : ""}
+      <option value="PC6" disabled={!!pcStatuses["PC6"]}>
+        PC6 {pcStatuses["PC6"] ? `(${pcStatuses["PC6"]})` : ""}
       </option>
     </select>
   </div>
+
 )}
 
             <div className="form-group">
